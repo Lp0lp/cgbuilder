@@ -256,20 +256,6 @@ class Visualization {
 	    this.updateSelection();
 	}
 
-	// onBeadSelected(event) {
-	//     if (! event.target.classList.contains('bead-name')) {
-    //         let realTarget = findParentWithClass(event.target, "bead-view");
-    //         let nodes = document.getElementById("bead-list").childNodes;
-    //         let index = 0;
-    //         for (const child of nodes) {
-    //             if (child === realTarget) {
-    //                 this.collection.selectBead(index);
-    //             }
-    //             index += 1;
-    //         }
-    //         this.updateSelection();
-    //     }
-	// }
     onBeadSelected(event) {
 
         const tag = event.target.tagName;
@@ -361,87 +347,131 @@ class Visualization {
     }
 
     createBeadListItem(bead) {
+
         let textNode;
         let list = document.getElementById("bead-list");
         let item = document.createElement("li");
 
-        // Remove button
-        let removeNode = document.createElement("button");
-        textNode = document.createTextNode("X");
-        removeNode.appendChild(textNode);
-        removeNode.onclick = (event) => this.onBeadRemove(event);
-        item.appendChild(removeNode);
+        item.classList.add("bead-view");
 
-        // Name entry
-        let formNode = document.createElement("form");
-        formNode.onsubmit = function() {return false};  // Prevent reload on "submission"
+       /* ===============================
+        HEADER ROW (Fields + Delete)
+        =============================== */
 
-        // Name
+        let headerRow = document.createElement("div");
+        headerRow.classList.add("bead-header");
+
+        let fieldsNode = document.createElement("div");
+        fieldsNode.classList.add("bead-fields");
+
+        // helper to build labeled field
+        const addLabeledField = (labelText, inputEl) => {
+            const wrap = document.createElement("div");
+            wrap.classList.add("field");
+
+            const lab = document.createElement("div");
+            lab.classList.add("field-label");
+            lab.textContent = labelText;
+
+            wrap.appendChild(lab);
+            wrap.appendChild(inputEl);
+            fieldsNode.appendChild(wrap);
+        };
+
+        // NAME
         let nameNode = document.createElement("input");
         nameNode.type = "text";
         nameNode.value = bead.name;
         nameNode.classList.add("bead-name");
         nameNode.oninput = (event) => this.onNameChange(event);
-        formNode.appendChild(nameNode);
+        nameNode.addEventListener("mousedown", e => e.stopPropagation());
+        addLabeledField("Name", nameNode);
 
-        // Type
+        // TYPE
         let typeNode = document.createElement("input");
         typeNode.type = "text";
         typeNode.value = bead.type;
-        typeNode.placeholder = "Type";
-        typeNode.style.width = "60px";
+        typeNode.classList.add("bead-type");
         typeNode.oninput = (event) => {
             bead.type = event.target.value;
             this.updateName();
         };
-        formNode.appendChild(typeNode);
+        typeNode.addEventListener("mousedown", e => e.stopPropagation());
+        addLabeledField("Type", typeNode);
 
-        // Charge
+        // CHARGE
         let chargeNode = document.createElement("input");
         chargeNode.type = "number";
         chargeNode.step = "0.01";
         chargeNode.value = bead.charge;
-        chargeNode.placeholder = "Q";
-        chargeNode.style.width = "60px";
+        chargeNode.classList.add("bead-charge");
         chargeNode.oninput = (event) => {
             bead.charge = event.target.value;
             this.updateName();
         };
-        formNode.appendChild(chargeNode);
+        chargeNode.addEventListener("mousedown", e => e.stopPropagation());
+        addLabeledField("Charge", chargeNode);
 
-        item.appendChild(formNode);
+        // DELETE BUTTON
+        let removeNode = document.createElement("button");
+        removeNode.textContent = "Delete";
+        removeNode.classList.add("delete-bead");
+        removeNode.onclick = (event) => {
+            event.stopPropagation();
+            this.onBeadRemove(event);
+        };
 
-        // Atom list
+        // Assemble header row
+        headerRow.appendChild(fieldsNode);
+        headerRow.appendChild(removeNode);
+
+        item.appendChild(headerRow);
+
+        /* ===============================
+        ATOM LIST
+        =============================== */
+
         let nameList = document.createElement("ul");
-        let subitem;
+
         if (bead.atoms.length > 0) {
+
             for (let i = 0; i < bead.atoms.length; i++) {
+
                 const atom = bead.atoms[i];
                 const name = atom.atomname;
 
-                // weight (default 1)
-                const w = (bead.atomWeights && bead.atomWeights[atom.index]) ? bead.atomWeights[atom.index] : 1;
-                subitem = document.createElement("li");
+                const w = (bead.atomWeights && bead.atomWeights[atom.index])
+                    ? bead.atomWeights[atom.index]
+                    : 1;
 
-                // Show "ATOM ×N" only if N>1
+                let subitem = document.createElement("li");
+
                 const label = (w > 1) ? `${name} ×${w}` : name;
                 textNode = document.createTextNode(label);
+
                 subitem.appendChild(textNode);
-                nameList.appendChild(subitem);
+
                 if (this.collection.countBeadsForAtom(atom) > 1) {
                     let shareitem = document.createElement("abbr");
                     shareitem.title = "This atom is shared between multiple beads.";
-                    let sharetext = document.createTextNode("🔗");
-                    shareitem.appendChild(sharetext);
+                    shareitem.textContent = " 🔗";
                     subitem.appendChild(shareitem);
-                    }
                 }
+
+                nameList.appendChild(subitem);
+            }
         }
+
         item.appendChild(nameList);
 
+        /* ===============================
+        SELECTION HANDLING
+        =============================== */
+
         item.onclick = (event) => this.onBeadSelected(event);
-        item.classList.add("bead-view");
+
         list.appendChild(item);
+
         if (bead === this.currentBead) {
             item.classList.add("selected-bead");
             item.scrollIntoView(false);
