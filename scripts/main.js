@@ -653,7 +653,7 @@ function generatePythonAssignments(collection) {
     }
 
     lines.push("");
-    lines.push(`bead_assignments = [${beadVarNames.join(",       ")}]`);
+    lines.push(`bead_assignments = [ ${beadVarNames.join(",       ")} ]`);
     lines.push(`bead_types       = [ ${beadTypes.join(", ")} ]`);
     lines.push(`bead_names       = [ ${beadVarNames.map(n => `'${n}'`).join(", ")} ]`);
     lines.push(`bead_charges     = [ ${beadCharges.join(", ")} ]`);
