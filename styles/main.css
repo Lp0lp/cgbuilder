@@ -1,35 +1,53 @@
+/* ================================
+   GLOBAL TYPOGRAPHY
+================================ */
+
 body {
     display: grid;
     grid-template-columns: 60vw auto;
     grid-template-rows: auto 70vh auto;
-    column-gap: 12px;
-    row-gap: 10px;
+    column-gap: 16px;
+    row-gap: 14px;
     align-items: start;
     margin: 0;
+    padding: 0;
+
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont,
+                 "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-weight: 400;
+    color: #222;
+    background: #f5f6f8;
 }
 
-/* TOP: controls (contains instructions + load/buttons) spans full width */
+/* ================================
+   TOP CONTROLS (FULL WIDTH)
+================================ */
+
 #controls {
     grid-column: 1 / 3;
     grid-row: 1;
-    padding: 10px;
+    padding: 14px 16px;
     box-sizing: border-box;
 }
 
-/* Make sure the instructions box really fills */
+/* Instruction box */
 #instructions.info-box {
     width: 100%;
     display: block;
     box-sizing: border-box;
-    margin-bottom: 10px;
+    margin-bottom: 14px;
 }
 
-/* Viewer left, row 2 */
+/* ================================
+   VIEWER
+================================ */
+
 #structview {
     grid-column: 1;
     grid-row: 2;
     height: 70vh;
     width: 100%;
+    background: black;
 }
 
 #viewport {
@@ -37,21 +55,25 @@ body {
     width: 100%;
 }
 
-/* Beadlist right, row 2 */
+/* ================================
+   BEAD LIST (RIGHT PANEL)
+================================ */
+
 #beadlist {
     grid-column: 2;
     grid-row: 2;
 
-    padding: 0.5em;
+    padding: 12px;
     height: 70vh;
     overflow: hidden;
     box-sizing: border-box;
 
     display: flex;
     flex-direction: column;
+    background: #ffffff;
+    border-radius: 8px;
 }
 
-/* Scrollable list */
 #bead-list {
     flex: 1 1 auto;
     min-height: 0;
@@ -62,51 +84,114 @@ body {
 }
 
 #bead-list ul {
-    margin: 0.25em 0 0 1.2em;
+    margin: 0.3em 0 0 1.2em;
     padding-left: 1.2em;
 }
 
+/* Individual bead cards */
 .bead-view {
-    margin: 0.5em;
-    padding: 0.5em;
-    border: 1px solid;
+    margin: 0.6em 0;
+    padding: 0.7em;
+    border: 1px solid #d0d4da;
+    border-radius: 6px;
+    background: #fafafa;
     box-sizing: border-box;
+    transition: background 0.2s ease;
+}
+
+.bead-view:hover {
+    background: #f1f3f6;
 }
 
 .selected-bead {
     background-color: #41d6f4;
+    border-color: #2bbbd9;
 }
 
-/* Outputs full width bottom */
+/* ================================
+   FILE OUTPUTS
+================================ */
+
 #file-outputs {
     grid-column: 1 / 3;
     grid-row: 3;
-    padding: 0.5em;
+    padding: 14px 16px;
     box-sizing: border-box;
 }
 
 #file-outputs pre {
-    border: 1px solid;
+    border: 1px solid #d0d4da;
     padding: 1em;
-    margin: 0.5em 0 1em 0;
+    margin: 0.6em 0 1.2em 0;
+    background: #ffffff;
+    border-radius: 6px;
+    overflow-x: auto;
 }
 
-/* Info box styling */
+/* ================================
+   INFO BOX STYLE
+================================ */
+
 .info-box {
-    padding: 10px 12px;
-    border: 1px solid #bbb;
-    border-radius: 6px;
-    background: #f7f7f7;
-    font-size: 0.9em;
-    line-height: 1.25em;
+    padding: 12px 14px;
+    border: 1px solid #d0d4da;
+    border-radius: 8px;
+    background: #ffffff;
+    font-size: 0.92em;
+    line-height: 1.35em;
     box-sizing: border-box;
 }
 
+.info-box strong {
+    font-weight: 600;
+}
+
 .info-box ul {
-    margin: 6px 0 0 18px;
+    margin: 8px 0 0 18px;
     padding: 0;
 }
 
 .info-box li {
-    margin: 2px 0;
+    margin: 4px 0;
+}
+
+/* ================================
+   BUTTONS + INPUTS
+================================ */
+
+button {
+    font-family: inherit;
+    font-weight: 500;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid #c6cbd2;
+    background: #ffffff;
+    cursor: pointer;
+    transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+button:hover {
+    background: #f1f3f6;
+}
+
+button:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+input {
+    font-family: inherit;
+    padding: 4px 6px;
+    border-radius: 4px;
+    border: 1px solid #c6cbd2;
+}
+
+/* Scrollbar (subtle modern look) */
+#bead-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+#bead-list::-webkit-scrollbar-thumb {
+    background: #c6cbd2;
+    border-radius: 4px;
 }

@@ -1,6 +1,8 @@
 class Bead {
 	constructor () {
 		this._name = null;
+        this._type = "TYPe";     
+		this._charge = 0;    
 		this.atoms = [];
         this.atomWeights = {};        // key: atom.index -> integer weight
 	}
@@ -62,6 +64,22 @@ class Bead {
 	        return 0;
         }
 	    return this.atoms[0].resno;
+    }
+
+    set type(value) {
+        this._type = value;
+    }
+
+    get type() {
+        return this._type;
+    }
+
+    set charge(value) {
+        this._charge = parseFloat(value) || 0;
+    }
+
+    get charge() {
+        return this._charge;
     }
 
 	isAtomIn(atom) {
@@ -238,20 +256,41 @@ class Visualization {
 	    this.updateSelection();
 	}
 
-	onBeadSelected(event) {
-	    if (! event.target.classList.contains('bead-name')) {
-            let realTarget = findParentWithClass(event.target, "bead-view");
-            let nodes = document.getElementById("bead-list").childNodes;
-            let index = 0;
-            for (const child of nodes) {
-                if (child === realTarget) {
-                    this.collection.selectBead(index);
-                }
-                index += 1;
-            }
-            this.updateSelection();
+	// onBeadSelected(event) {
+	//     if (! event.target.classList.contains('bead-name')) {
+    //         let realTarget = findParentWithClass(event.target, "bead-view");
+    //         let nodes = document.getElementById("bead-list").childNodes;
+    //         let index = 0;
+    //         for (const child of nodes) {
+    //             if (child === realTarget) {
+    //                 this.collection.selectBead(index);
+    //             }
+    //             index += 1;
+    //         }
+    //         this.updateSelection();
+    //     }
+	// }
+    onBeadSelected(event) {
+
+        const tag = event.target.tagName;
+
+        if (tag === "INPUT" || tag === "BUTTON" || tag === "FORM" || tag === "LABEL") {
+            return;
         }
-	}
+
+        let realTarget = findParentWithClass(event.target, "bead-view");
+        let nodes = document.getElementById("bead-list").childNodes;
+        let index = 0;
+
+        for (const child of nodes) {
+            if (child === realTarget) {
+                this.collection.selectBead(index);
+            }
+            index += 1;
+        }
+
+        this.updateSelection();
+    }
 
 	onBeadRemove(event) {
         let realTarget = findParentWithClass(event.target, "bead-view");
@@ -336,57 +375,67 @@ class Visualization {
         // Name entry
         let formNode = document.createElement("form");
         formNode.onsubmit = function() {return false};  // Prevent reload on "submission"
+
+        // Name
         let nameNode = document.createElement("input");
-        nameNode.setAttribute("type", "text");
-        nameNode.setAttribute("value", bead.name);
+        nameNode.type = "text";
+        nameNode.value = bead.name;
         nameNode.classList.add("bead-name");
         nameNode.oninput = (event) => this.onNameChange(event);
         formNode.appendChild(nameNode);
+
+        // Type
+        let typeNode = document.createElement("input");
+        typeNode.type = "text";
+        typeNode.value = bead.type;
+        typeNode.placeholder = "Type";
+        typeNode.style.width = "60px";
+        typeNode.oninput = (event) => {
+            bead.type = event.target.value;
+            this.updateName();
+        };
+        formNode.appendChild(typeNode);
+
+        // Charge
+        let chargeNode = document.createElement("input");
+        chargeNode.type = "number";
+        chargeNode.step = "0.01";
+        chargeNode.value = bead.charge;
+        chargeNode.placeholder = "Q";
+        chargeNode.style.width = "60px";
+        chargeNode.oninput = (event) => {
+            bead.charge = event.target.value;
+            this.updateName();
+        };
+        formNode.appendChild(chargeNode);
+
         item.appendChild(formNode);
 
         // Atom list
         let nameList = document.createElement("ul");
         let subitem;
         if (bead.atoms.length > 0) {
-            // for (let i=0; i < bead.atoms.length; i++) {
-            //     let name = bead.atoms[i].atomname;
-            //     subitem = document.createElement("li");
-            //     textNode = document.createTextNode(name);
-            //     subitem.appendChild(textNode);
-            //     nameList.appendChild(subitem);
-            //     if (this.collection.countBeadsForAtom(bead.atoms[i]) > 1) {
-            //         let shareitem = document.createElement("abbr")
-            //         shareitem.title = "This atom is shared between multiple beads.";
-            //         let sharetext = document.createTextNode('🔗');
-            //         shareitem.appendChild(sharetext);
-            //         subitem.appendChild(shareitem);
-            //     }
-            // }
             for (let i = 0; i < bead.atoms.length; i++) {
                 const atom = bead.atoms[i];
                 const name = atom.atomname;
 
                 // weight (default 1)
                 const w = (bead.atomWeights && bead.atomWeights[atom.index]) ? bead.atomWeights[atom.index] : 1;
-
                 subitem = document.createElement("li");
 
                 // Show "ATOM ×N" only if N>1
                 const label = (w > 1) ? `${name} ×${w}` : name;
-
                 textNode = document.createTextNode(label);
                 subitem.appendChild(textNode);
-
                 nameList.appendChild(subitem);
-
                 if (this.collection.countBeadsForAtom(atom) > 1) {
                     let shareitem = document.createElement("abbr");
                     shareitem.title = "This atom is shared between multiple beads.";
                     let sharetext = document.createTextNode("🔗");
                     shareitem.appendChild(sharetext);
                     subitem.appendChild(shareitem);
-    }
-}
+                    }
+                }
         }
         item.appendChild(nameList);
 
@@ -518,38 +567,41 @@ function generateMap(collection) {
     return output;
 }
 
-function generatePythonAssignments(collection, bead_types=null) {
+function generatePythonAssignments(collection) {
     const beads = collection.beads;
 
     if (beads.length === 0) {
-        alert("No beads defined.");
         return "";
     }
 
     let lines = [];
     let beadVarNames = [];
+    let beadTypes = [];
+    let beadCharges = [];
 
-    // Default bead types placeholder
-    if (bead_types == null) {
-        bead_types = beads.map(_ => "TYPE");
-    }
+    const resname = collection.beads[0].resname;
+    lines.push(`resname='${resname}'`);
 
-    beads.forEach((bead, i) => {
+    for (const bead of beads) {
 
-        // Use bead.name directly as variable name
         const varName = bead.name;
         beadVarNames.push(varName);
 
-        // Atom names exactly like your example
-        const atomNames = bead.expandedAtoms().map(a => `'${a.atomname}'`).join(",");
+        const atomNames = bead.expandedAtoms
+            ? bead.expandedAtoms().map(a => `'${a.atomname}'`).join(",")
+            : bead.atoms.map(a => `'${a.atomname}'`).join(",");
 
         lines.push(`${varName}   = [${atomNames}]`);
-    });
+
+        beadTypes.push(`'${bead.type || ""}'`);
+        beadCharges.push(bead.charge ?? 0);
+    }
 
     lines.push("");
     lines.push(`bead_assignments = [${beadVarNames.join(",       ")}]`);
-    lines.push(`bead_types       = [${bead_types.map(t => `'${t}'`).join(", ")}]`);
-    lines.push(`bead_names       = [${beadVarNames.map(n => `'${n}'`).join(", ")}]`);
+    lines.push(`bead_types       = [ ${beadTypes.join(", ")} ]`);
+    lines.push(`bead_names       = [ ${beadVarNames.map(n => `'${n}'`).join(", ")} ]`);
+    lines.push(`bead_charges     = [ ${beadCharges.join(", ")} ]`);
 
     return lines.join("\n") + "\n";
 }
