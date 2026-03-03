@@ -187,6 +187,31 @@ class Visualization {
         document.getElementById('dl-py').onclick = (event) => {
             download('cgbuilder_assignments.py', generatePythonAssignments(this.collection));
         };
+        document.getElementById('copy-py').onclick = async (event) => {
+
+            const button = event.target;
+            const originalText = button.textContent;
+
+            const text = document.getElementById('py-output').textContent || "";
+
+            try {
+                await copyTextToClipboard(text);
+
+                button.textContent = "Copied!";
+                button.classList.add("copied");
+
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.classList.remove("copied");
+                }, 1200);
+
+            } catch (err) {
+                button.textContent = "Failed";
+                setTimeout(() => {
+                    button.textContent = originalText;
+                }, 1200);
+            }
+        };
     }
 
 	get currentBead() {
@@ -677,6 +702,28 @@ function download(filename, text) {
   document.body.removeChild(element);
 }
 
+function copyTextToClipboard(text) {
+    // Modern clipboard API
+    if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(text);
+    }
+
+    // Fallback for non-HTTPS / older browsers
+    let textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.style.position = "fixed";
+    textarea.style.left = "-9999px";
+    textarea.style.top = "-9999px";
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    try {
+        document.execCommand("copy");
+    } finally {
+        document.body.removeChild(textarea);
+    }
+    return Promise.resolve();
+}
 
 function loadMolecule(event, stage) {
     // Clear the stage if needed
