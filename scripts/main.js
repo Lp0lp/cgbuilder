@@ -127,15 +127,23 @@ class Visualization {
         this.stage = stage;
         this.shapeComp = null;
         this.showCG = false;
+
         let toggleCG = document.getElementById('toggle-cg');
         toggleCG.onclick = (event) => this.onToggleCG(event);
         toggleCG.disabled = false;
+
         document.getElementById('dl-ndx').onclick = (event) => {
-            download('cgbuilder.ndx', generateNDX(this.collection))}
+            download('cgbuilder.ndx', generateNDX(this.collection));
+        };
         document.getElementById('dl-map').onclick = (event) => {
-            download('cgbuilder.map', generateMap(this.collection))}
+            download('cgbuilder.map', generateMap(this.collection));
+        };
         document.getElementById('dl-gro').onclick = (event) => {
-            download('cgbuilder.gro', generateGRO(this.collection))}
+            download('cgbuilder.gro', generateGRO(this.collection));
+        };
+        document.getElementById('dl-py').onclick = (event) => {
+            download('cgbuilder_assignments.py', generatePythonAssignments(this.collection));
+        };
     }
 
 	get currentBead() {
@@ -274,6 +282,7 @@ class Visualization {
         this.updateNDX();
         this.updateMap();
         this.updateGRO();
+        this.updatePY();
         this.drawCG();
     }
 
@@ -366,6 +375,11 @@ class Visualization {
         displayNode.textContent = generateGRO(this.collection);
     }
 
+    updatePY() {
+        let displayNode = document.getElementById('py-output');
+        displayNode.textContent = generatePythonAssignments(this.collection);
+    }
+
     drawCG() {
         let normalColor = [0.58, 0.79, 0.66];
         let selectedColor = [0.25, 0.84, 0.96];
@@ -452,6 +466,43 @@ function generateMap(collection) {
     return output;
 }
 
+function generatePythonAssignments(collection, bead_types=null) {
+    const beads = collection.beads;
+
+    if (beads.length === 0) {
+        alert("No beads defined.");
+        return "";
+    }
+
+    let lines = [];
+    let beadVarNames = [];
+
+    // Default bead types placeholder
+    if (bead_types == null) {
+        bead_types = beads.map(_ => "TYPE");
+    }
+
+    beads.forEach((bead, i) => {
+
+        // Use bead.name directly as variable name
+        const varName = bead.name;
+        beadVarNames.push(varName);
+
+        // Atom names exactly like your example
+        const atomNames = bead.atoms
+            .map(a => `'${a.atomname}'`)
+            .join(",");
+
+        lines.push(`${varName}   = [${atomNames}]`);
+    });
+
+    lines.push("");
+    lines.push(`bead_assignments = [${beadVarNames.join(",       ")}]`);
+    lines.push(`bead_types       = [${bead_types.map(t => `'${t}'`).join(", ")}]`);
+    lines.push(`bead_names       = [${beadVarNames.map(n => `'${n}'`).join(", ")}]`);
+
+    return lines.join("\n") + "\n";
+}
 
 function generateGRO(collection) {
     let resid = "    0";
