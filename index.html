@@ -13,6 +13,17 @@
 	<div id="viewport"></div>
 </div>
 <div id="controls">
+
+    <div id="instructions" class="info-box">
+        <strong>How to build beads:</strong>
+        <ul>
+            <li><b>Click</b> an atom to add it to the current bead (clicking again increases its weight).</li>
+            <li><b>Shift + Click</b> an atom to decrease its weight / remove it from the current bead.</li>
+            <li><b>New bead</b> creates a fresh bead and selects it.</li>
+            <li>Rename beads on the right; exports and previews update automatically.</li>
+        </ul>
+    </div>
+
     <form>
         <label for="files" class="btn">Load molecule</label>
         <input id="mol-select" type="file" name="files" accept=".pdb,.cif,.ent,.gz,.gro"/>

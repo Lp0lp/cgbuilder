@@ -2,31 +2,37 @@ class Bead {
 	constructor () {
 		this._name = null;
 		this.atoms = [];
+        this.atomWeights = {};        // key: atom.index -> integer weight
 	}
 
-	indexOf(atom) {
-	    if (this.atoms.length > 0) {
-            for (let i=0; i < this.atoms.length; i++) {
-                if (this.atoms[i].index === atom.index) {
-                    return i;
-                }
-            }
+    indexOf(atom) {
+        for (let i = 0; i < this.atoms.length; i++) {
+        if (this.atoms[i].index === atom.index) return i;
         }
-		return -1;
-	}
+        return -1;
+    }
 
-	addAtom(atom) {
-		if (!this.isAtomIn(atom)) {
-			this.atoms.push(atom);
-		}
-	}
+    addAtom(atom) {
+        // first time: add to unique list
+        if (this.indexOf(atom) < 0) this.atoms.push(atom);
+        // always increment weight
+        const k = atom.index;
+        this.atomWeights[k] = (this.atomWeights[k] || 0) + 1;
+    }
 
-	removeAtom(atom) {
-	    let atomIndex = this.indexOf(atom);
-	    if (atomIndex >= 0) {
-	        this.atoms.splice(atomIndex, 1);
-	    }
-	}
+    removeAtom(atom) {
+        const k = atom.index;
+        if (!this.atomWeights[k]) return;
+
+        this.atomWeights[k] -= 1;
+
+        // if weight reaches 0, remove atom from unique list
+        if (this.atomWeights[k] <= 0) {
+        delete this.atomWeights[k];
+        const idx = this.indexOf(atom);
+        if (idx >= 0) this.atoms.splice(idx, 1);
+        }
+    }
 
 	toggleAtom(atom) {
 	    if (this.isAtomIn(atom)) {
@@ -62,16 +68,35 @@ class Bead {
 		return this.indexOf(atom) >= 0;
 	}
 
-	get center() {
-	    let mass = 0;
-	    let position = new NGL.Vector3(0, 0, 0);
-	    for (const atom of this.atoms) {
-	        mass += 1;
-	        position.add(atom.positionToVector3());
-	    }
-	    position.divideScalar(mass);
-	    return position;
-	}
+    // IMPORTANT: change toggle behavior
+    // click -> add weight; (you can add a separate "decrement" action)
+    toggleAtom(atom) {
+        this.addAtom(atom);
+    }
+
+    // weighted center
+    get center() {
+        let mass = 0;
+        let position = new NGL.Vector3(0, 0, 0);
+        for (const atom of this.atoms) {
+        const w = this.atomWeights[atom.index] || 1;
+        mass += w;
+        // add atom position w times (cheap way without needing vector scaling)
+        for (let i = 0; i < w; i++) position.add(atom.positionToVector3());
+        }
+        position.divideScalar(mass);
+        return position;
+    }
+
+    // helper to export duplicates (for your python output)
+    expandedAtoms() {
+        let out = [];
+        for (const atom of this.atoms) {
+        const w = this.atomWeights[atom.index] || 1;
+        for (let i = 0; i < w; i++) out.push(atom);
+        }
+        return out;
+    }
 }
 
 
@@ -198,12 +223,14 @@ class Visualization {
     }
 
     onClick(pickingProxy) {
-        // pickingProxy is only defined if the click is on an atom.
-        // We do not want to do anything if there is no atom selected.
-        if (pickingProxy && pickingProxy.atom) {
-            this.currentBead.toggleAtom(pickingProxy.atom);
-            this.updateSelection();
+    if (pickingProxy && pickingProxy.atom) {
+        if (pickingProxy.mouse && pickingProxy.mouse.shiftKey) {
+        this.currentBead.removeAtom(pickingProxy.atom);  // decrement
+        } else {
+        this.currentBead.addAtom(pickingProxy.atom);     // increment
         }
+        this.updateSelection();
+    }
     }
 
 	onNewBead(event) {
@@ -321,20 +348,45 @@ class Visualization {
         let nameList = document.createElement("ul");
         let subitem;
         if (bead.atoms.length > 0) {
-            for (let i=0; i < bead.atoms.length; i++) {
-                let name = bead.atoms[i].atomname;
+            // for (let i=0; i < bead.atoms.length; i++) {
+            //     let name = bead.atoms[i].atomname;
+            //     subitem = document.createElement("li");
+            //     textNode = document.createTextNode(name);
+            //     subitem.appendChild(textNode);
+            //     nameList.appendChild(subitem);
+            //     if (this.collection.countBeadsForAtom(bead.atoms[i]) > 1) {
+            //         let shareitem = document.createElement("abbr")
+            //         shareitem.title = "This atom is shared between multiple beads.";
+            //         let sharetext = document.createTextNode('🔗');
+            //         shareitem.appendChild(sharetext);
+            //         subitem.appendChild(shareitem);
+            //     }
+            // }
+            for (let i = 0; i < bead.atoms.length; i++) {
+                const atom = bead.atoms[i];
+                const name = atom.atomname;
+
+                // weight (default 1)
+                const w = (bead.atomWeights && bead.atomWeights[atom.index]) ? bead.atomWeights[atom.index] : 1;
+
                 subitem = document.createElement("li");
-                textNode = document.createTextNode(name);
+
+                // Show "ATOM ×N" only if N>1
+                const label = (w > 1) ? `${name} ×${w}` : name;
+
+                textNode = document.createTextNode(label);
                 subitem.appendChild(textNode);
+
                 nameList.appendChild(subitem);
-                if (this.collection.countBeadsForAtom(bead.atoms[i]) > 1) {
-                    let shareitem = document.createElement("abbr")
+
+                if (this.collection.countBeadsForAtom(atom) > 1) {
+                    let shareitem = document.createElement("abbr");
                     shareitem.title = "This atom is shared between multiple beads.";
-                    let sharetext = document.createTextNode('🔗');
+                    let sharetext = document.createTextNode("🔗");
                     shareitem.appendChild(sharetext);
                     subitem.appendChild(shareitem);
-                }
-            }
+    }
+}
         }
         item.appendChild(nameList);
 
@@ -489,9 +541,7 @@ function generatePythonAssignments(collection, bead_types=null) {
         beadVarNames.push(varName);
 
         // Atom names exactly like your example
-        const atomNames = bead.atoms
-            .map(a => `'${a.atomname}'`)
-            .join(",");
+        const atomNames = bead.expandedAtoms().map(a => `'${a.atomname}'`).join(",");
 
         lines.push(`${varName}   = [${atomNames}]`);
     });
