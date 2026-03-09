@@ -623,40 +623,46 @@ function generateMap(collection) {
 }
 
 function generatePythonAssignments(collection) {
-    const beads = collection.beads;
 
-    if (beads.length === 0) {
-        return "";
+    const beads = collection.beads || [];
+    if (beads.length === 0) return "";
+
+    // Determine residue name
+    let resname = "UNK";
+    for (const bead of beads) {
+        if (bead.atoms && bead.atoms.length > 0) {
+            resname = bead.resname;
+            break;
+        }
     }
 
     let lines = [];
-    let beadVarNames = [];
-    let beadTypes = [];
-    let beadCharges = [];
 
-    const resname = collection.beads[0].resname;
-    lines.push(`resname='${resname}'`);
+    lines.push("mapping = {");
+    lines.push("    ## resname");
+    lines.push(`    "${resname}": {`);
+    lines.push("    ## bead name; type(opt.);   charge(opt.);         Mapping.");
 
     for (const bead of beads) {
 
-        const varName = bead.name;
-        beadVarNames.push(varName);
+        const beadName = bead.name;
+        const beadType = bead.type || "type";
+        const beadCharge = bead.charge ?? 0;
 
-        const atomNames = bead.expandedAtoms
-            ? bead.expandedAtoms().map(a => `'${a.atomname}'`).join(",")
-            : bead.atoms.map(a => `'${a.atomname}'`).join(",");
+        // expand atoms if weighted
+        const atoms = (typeof bead.expandedAtoms === "function")
+            ? bead.expandedAtoms()
+            : bead.atoms;
 
-        lines.push(`${varName}   = [${atomNames}]`);
+        const atomNames = atoms.map(a => `'${a.atomname}'`).join(",");
 
-        beadTypes.push(`'${bead.type || ""}'`);
-        beadCharges.push(bead.charge ?? 0);
+        lines.push(
+            `        "${beadName}": {"type": "${beadType}", "charge": ${beadCharge}, "atoms": [${atomNames}]},`
+        );
     }
 
-    lines.push("");
-    lines.push(`bead_assignments = [ ${beadVarNames.join(",       ")} ]`);
-    lines.push(`bead_types       = [ ${beadTypes.join(", ")} ]`);
-    lines.push(`bead_names       = [ ${beadVarNames.map(n => `'${n}'`).join(", ")} ]`);
-    lines.push(`bead_charges     = [ ${beadCharges.join(", ")} ]`);
+    lines.push("    },");
+    lines.push("}");
 
     return lines.join("\n") + "\n";
 }
