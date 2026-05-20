@@ -221,12 +221,12 @@ class Visualization {
     attachRepresentation(component) {
         this.representation = component.addRepresentation(
 	        "ball+stick",
-	        {
+            bondAwareRepresentationParams({
 	            sele: "not all",
 	            radiusScale: 1.6,
 	            color: "#f4b642",
 	            opacity: 0.6
-	        },
+            }),
 	    );
     }
 
@@ -731,6 +731,18 @@ function copyTextToClipboard(text) {
     return Promise.resolve();
 }
 
+// Helper to ensure that double and triple bonds are properly rendered
+function bondAwareRepresentationParams(overrides = {}) {
+    return Object.assign(
+        {
+            multipleBond: true,
+            bondSpacing: 1,
+            bondScale: 0.4,
+        },
+        overrides
+    );
+}
+
 function loadMolecule(event, stage) {
     // Clear the stage if needed
     stage.removeAllComponents();
@@ -742,7 +754,7 @@ function loadMolecule(event, stage) {
     // Load the molecule
     let input = event.target.files[0]
 	stage.loadFile(input).then(function (component) {
-	    component.addRepresentation("ball+stick");
+        component.addRepresentation("ball+stick", bondAwareRepresentationParams());
 	    component.autoView();
 	    vizu.attachAALabels(component);
 	    vizu.attachRepresentation(component);
