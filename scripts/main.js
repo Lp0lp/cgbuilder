@@ -167,14 +167,39 @@ class BeadCollection {
         if (!Array.isArray(names)) {
             return;
         }
+        // Parsed input atom names must remain aligned with NGL atom.index.
         for (let i = 0; i < names.length; i++) {
             this._atomNames.set(i, names[i]);
         }
     }
 
     atomName(atom) {
-        const name = this._atomNames.get(atom.index);
-        return name || atom.atomname;
+        return this._atomNames.get(atom.index) ?? atom.atomname;
+    }
+
+    atomNames(atoms) {
+        return atoms.map((atom) => this.atomName(atom));
+    }
+
+    expandedAtomNames(bead) {
+        const names = [];
+        for (const atom of bead.atoms) {
+            const weight = bead.atomWeights[atom.index] || 1;
+            for (let i = 0; i < weight; i++) {
+                names.push(this.atomName(atom));
+            }
+        }
+        return names;
+    }
+
+    structureAtomNames(structure) {
+        const names = [];
+        if (structure && typeof structure.eachAtom === "function") {
+            structure.eachAtom((atom) => {
+                names.push(this.atomName(atom));
+            });
+        }
+        return names;
     }
 }
 
@@ -247,26 +272,13 @@ class Visualization {
     }
 
     attachAALabels(component) {
-        const labelText = [];
-        if (component && component.structure && typeof component.structure.eachAtom === "function") {
-            component.structure.eachAtom((atom) => {
-                labelText.push(this.collection.atomName(atom));
-            });
-        }
-
-        const labelParams = labelText.length > 0
-            ? {
-                labelType: "text",
-                labelText,
-                labelGrouping: "atom",
-            }
-            : {
-                labelType: "atomname",
-            };
-
         this.aa_labels = component.addRepresentation(
             "label",
-            labelParams,
+            {
+                labelType: "text",
+                labelText: this.collection.structureAtomNames(component.structure),
+                labelGrouping: "atom",
+            },
         );
 
         let buttons = document.getElementsByClassName("toggle-aa-labels");
@@ -681,12 +693,9 @@ function generatePythonAssignments(collection) {
         const beadType = bead.type || "type";
         const beadCharge = bead.charge ?? 0;
 
-        // expand atoms if weighted
-        const atoms = (typeof bead.expandedAtoms === "function")
-            ? bead.expandedAtoms()
-            : bead.atoms;
-
-        const atomNames = atoms.map(a => `'${collection.atomName(a)}'`).join(",");
+        const atomNames = collection.expandedAtomNames(bead)
+            .map((name) => `'${name}'`)
+            .join(",");
 
         lines.push(
             `        "${beadName}": {"type": "${beadType}", "charge": ${beadCharge}, "atoms": [${atomNames}]},`
