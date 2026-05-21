@@ -247,11 +247,26 @@ class Visualization {
     }
 
     attachAALabels(component) {
+        const labelText = [];
+        if (component && component.structure && typeof component.structure.eachAtom === "function") {
+            component.structure.eachAtom((atom) => {
+                labelText.push(this.collection.atomName(atom));
+            });
+        }
+
+        const labelParams = labelText.length > 0
+            ? {
+                labelType: "text",
+                labelText,
+                labelGrouping: "atom",
+            }
+            : {
+                labelType: "atomname",
+            };
+
         this.aa_labels = component.addRepresentation(
             "label",
-            {
-                labelType: "atomname",
-            },
+            labelParams,
         );
 
         let buttons = document.getElementsByClassName("toggle-aa-labels");
