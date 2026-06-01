@@ -1,4 +1,4 @@
-class Bead {
+`class Bead {
 	constructor () {
 		this._name = null;
         this._type = "TYPe";     
@@ -262,12 +262,12 @@ class Visualization {
     attachRepresentation(component) {
         this.representation = component.addRepresentation(
 	        "ball+stick",
-	        {
+            bondAwareRepresentationParams({
 	            sele: "not all",
 	            radiusScale: 1.6,
 	            color: "#f4b642",
 	            opacity: 0.6
-	        },
+            }),
 	    );
     }
 
@@ -824,6 +824,18 @@ function readOriginalAtomNames(file) {
         .catch(() => []);
 }
 
+// Helper to ensure that double and triple bonds are properly rendered
+function bondAwareRepresentationParams(overrides = {}) {
+    return Object.assign(
+        {
+            multipleBond: true,
+            bondSpacing: 1,
+            bondScale: 0.4,
+        },
+        overrides
+    );
+}
+
 function loadMolecule(event, stage) {
     // Clear the stage if needed
     stage.removeAllComponents();
@@ -842,7 +854,7 @@ function loadMolecule(event, stage) {
         .then(([names, component]) => {
             // Ensure original atom names are applied before any UI/render
             collection.setOriginalAtomNames(names || []);
-            component.addRepresentation("ball+stick");
+            component.addRepresentation("ball+stick", bondAwareRepresentationParams());
             component.autoView();
             vizu.attachAALabels(component);
             vizu.attachRepresentation(component);
