@@ -1,15 +1,15 @@
 class Bead {
-	constructor () {
-		this._name = null;
-        this._type = "TYPe";     
-		this._charge = 0;    
-		this.atoms = [];
-        this.atomWeights = {};        // key: atom.index -> integer weight
-	}
+    constructor() {
+        this._name = null;
+        this._type = 'TYPe';
+        this._charge = 0;
+        this.atoms = [];
+        this.atomWeights = {}; // key: atom.index -> integer weight
+    }
 
     indexOf(atom) {
         for (let i = 0; i < this.atoms.length; i++) {
-        if (this.atoms[i].index === atom.index) return i;
+            if (this.atoms[i].index === atom.index) return i;
         }
         return -1;
     }
@@ -30,40 +30,32 @@ class Bead {
 
         // if weight reaches 0, remove atom from unique list
         if (this.atomWeights[k] <= 0) {
-        delete this.atomWeights[k];
-        const idx = this.indexOf(atom);
-        if (idx >= 0) this.atoms.splice(idx, 1);
+            delete this.atomWeights[k];
+            const idx = this.indexOf(atom);
+            if (idx >= 0) this.atoms.splice(idx, 1);
         }
     }
 
-	toggleAtom(atom) {
-	    if (this.isAtomIn(atom)) {
-	        this.removeAtom(atom);
-	    } else {
-	        this.addAtom(atom);
-	    }
-	}
-
-	set name(name) {
-		this._name = name;
-	}
-
-	get name() {
-		return this._name;
-	}
-
-	get resname() {
-	    if (this.atoms.length < 1) {
-	        return 'UNK';
-        }
-	    return this.atoms[0].resname;
+    set name(name) {
+        this._name = name;
     }
 
-	get resid() {
-	    if (this.atoms.length < 1) {
-	        return 0;
+    get name() {
+        return this._name;
+    }
+
+    get resname() {
+        if (this.atoms.length < 1) {
+            return 'UNK';
         }
-	    return this.atoms[0].resno;
+        return this.atoms[0].resname;
+    }
+
+    get resid() {
+        if (this.atoms.length < 1) {
+            return 0;
+        }
+        return this.atoms[0].resno;
     }
 
     set type(value) {
@@ -82,9 +74,9 @@ class Bead {
         return this._charge;
     }
 
-	isAtomIn(atom) {
-		return this.indexOf(atom) >= 0;
-	}
+    isAtomIn(atom) {
+        return this.indexOf(atom) >= 0;
+    }
 
     // IMPORTANT: change toggle behavior
     // click -> add weight; (you can add a separate "decrement" action)
@@ -97,10 +89,10 @@ class Bead {
         let mass = 0;
         let position = new NGL.Vector3(0, 0, 0);
         for (const atom of this.atoms) {
-        const w = this.atomWeights[atom.index] || 1;
-        mass += w;
-        // add atom position w times (cheap way without needing vector scaling)
-        for (let i = 0; i < w; i++) position.add(atom.positionToVector3());
+            const w = this.atomWeights[atom.index] || 1;
+            mass += w;
+            // add atom position w times (cheap way without needing vector scaling)
+            for (let i = 0; i < w; i++) position.add(atom.positionToVector3());
         }
         position.divideScalar(mass);
         return position;
@@ -110,16 +102,15 @@ class Bead {
     expandedAtoms() {
         let out = [];
         for (const atom of this.atoms) {
-        const w = this.atomWeights[atom.index] || 1;
-        for (let i = 0; i < w; i++) out.push(atom);
+            const w = this.atomWeights[atom.index] || 1;
+            for (let i = 0; i < w; i++) out.push(atom);
         }
         return out;
     }
 }
 
-
 class BeadCollection {
-    constructor () {
+    constructor() {
         this._beads = [];
         this._current = null;
         this._largestIndex = -1;
@@ -127,7 +118,7 @@ class BeadCollection {
         this.newBead();
     }
 
-    newBead () {
+    newBead() {
         let bead = new Bead();
         this._largestIndex += 1;
         bead.name = 'B' + this._largestIndex;
@@ -194,7 +185,7 @@ class BeadCollection {
 
     structureAtomNames(structure) {
         const names = [];
-        if (structure && typeof structure.eachAtom === "function") {
+        if (structure && typeof structure.eachAtom === 'function') {
             structure.eachAtom((atom) => {
                 names.push(this.atomName(atom));
             });
@@ -202,7 +193,6 @@ class BeadCollection {
         return names;
     }
 }
-
 
 class Visualization {
     constructor(collection, stage) {
@@ -216,38 +206,39 @@ class Visualization {
         toggleCG.onclick = (event) => this.onToggleCG(event);
         toggleCG.disabled = false;
 
-        document.getElementById('dl-ndx').onclick = (event) => {
+        document.getElementById('dl-ndx').onclick = () => {
             download('cgbuilder.ndx', generateNDX(this.collection));
         };
-        document.getElementById('dl-map').onclick = (event) => {
+        document.getElementById('dl-map').onclick = () => {
             download('cgbuilder.map', generateMap(this.collection));
         };
-        document.getElementById('dl-gro').onclick = (event) => {
+        document.getElementById('dl-gro').onclick = () => {
             download('cgbuilder.gro', generateGRO(this.collection));
         };
-        document.getElementById('dl-py').onclick = (event) => {
-            download('cgbuilder_assignments.py', generatePythonAssignments(this.collection));
+        document.getElementById('dl-py').onclick = () => {
+            download(
+                'cgbuilder_assignments.py',
+                generatePythonAssignments(this.collection),
+            );
         };
         document.getElementById('copy-py').onclick = async (event) => {
-
             const button = event.target;
             const originalText = button.textContent;
 
-            const text = document.getElementById('py-output').textContent || "";
+            const text = document.getElementById('py-output').textContent || '';
 
             try {
                 await copyTextToClipboard(text);
 
-                button.textContent = "Copied!";
-                button.classList.add("copied");
+                button.textContent = 'Copied!';
+                button.classList.add('copied');
 
                 setTimeout(() => {
                     button.textContent = originalText;
-                    button.classList.remove("copied");
+                    button.classList.remove('copied');
                 }, 1200);
-
-            } catch (err) {
-                button.textContent = "Failed";
+            } catch {
+                button.textContent = 'Failed';
                 setTimeout(() => {
                     button.textContent = originalText;
                 }, 1200);
@@ -255,46 +246,43 @@ class Visualization {
         };
     }
 
-	get currentBead() {
-	    return this.collection.currentBead;
-	}
+    get currentBead() {
+        return this.collection.currentBead;
+    }
 
     attachRepresentation(component) {
         this.representation = component.addRepresentation(
-	        "ball+stick",
+            'ball+stick',
             bondAwareRepresentationParams({
-	            sele: "not all",
-	            radiusScale: 1.6,
-	            color: "#f4b642",
-	            opacity: 0.6
+                sele: 'not all',
+                radiusScale: 1.6,
+                color: '#f4b642',
+                opacity: 0.6,
             }),
-	    );
+        );
     }
 
     attachAALabels(component) {
-        this.aa_labels = component.addRepresentation(
-            "label",
-            {
-                labelType: "text",
-                labelText: this.collection.structureAtomNames(component.structure),
-                labelGrouping: "atom",
-            },
-        );
+        this.aa_labels = component.addRepresentation('label', {
+            labelType: 'text',
+            labelText: this.collection.structureAtomNames(component.structure),
+            labelGrouping: 'atom',
+        });
 
-        let buttons = document.getElementsByClassName("toggle-aa-labels");
+        let buttons = document.getElementsByClassName('toggle-aa-labels');
         for (const button of buttons) {
             button.disabled = false;
             button.onclick = (event) => this.onToggleAALabels(event);
         }
     }
 
-    onToggleCG(event) {
-        this.showCG = (! this.showCG);
+    onToggleCG() {
+        this.showCG = !this.showCG;
         this.drawCG();
     }
 
-    onToggleAALabels(event) {
-        let visible = ! this.aa_labels.visible;
+    onToggleAALabels() {
+        let visible = !this.aa_labels.visible;
         this.aa_labels.setVisibility(visible);
         let text;
         if (visible) {
@@ -302,38 +290,42 @@ class Visualization {
         } else {
             text = 'Show labels';
         }
-        let buttons = document.getElementsByClassName("toggle-aa-labels");
+        let buttons = document.getElementsByClassName('toggle-aa-labels');
         for (const button of buttons) {
             button.textContent = text;
         }
     }
 
     onClick(pickingProxy) {
-    if (pickingProxy && pickingProxy.atom) {
-        if (pickingProxy.mouse && pickingProxy.mouse.shiftKey) {
-        this.currentBead.removeAtom(pickingProxy.atom);  // decrement
-        } else {
-        this.currentBead.addAtom(pickingProxy.atom);     // increment
+        if (pickingProxy && pickingProxy.atom) {
+            if (pickingProxy.mouse && pickingProxy.mouse.shiftKey) {
+                this.currentBead.removeAtom(pickingProxy.atom); // decrement
+            } else {
+                this.currentBead.addAtom(pickingProxy.atom); // increment
+            }
+            this.updateSelection();
         }
+    }
+
+    onNewBead() {
+        this.collection.newBead();
         this.updateSelection();
     }
-    }
-
-	onNewBead(event) {
-	    this.collection.newBead();
-	    this.updateSelection();
-	}
 
     onBeadSelected(event) {
-
         const tag = event.target.tagName;
 
-        if (tag === "INPUT" || tag === "BUTTON" || tag === "FORM" || tag === "LABEL") {
+        if (
+            tag === 'INPUT' ||
+            tag === 'BUTTON' ||
+            tag === 'FORM' ||
+            tag === 'LABEL'
+        ) {
             return;
         }
 
-        let realTarget = findParentWithClass(event.target, "bead-view");
-        let nodes = document.getElementById("bead-list").childNodes;
+        let realTarget = findParentWithClass(event.target, 'bead-view');
+        let nodes = document.getElementById('bead-list').childNodes;
         let index = 0;
 
         for (const child of nodes) {
@@ -346,9 +338,9 @@ class Visualization {
         this.updateSelection();
     }
 
-	onBeadRemove(event) {
-        let realTarget = findParentWithClass(event.target, "bead-view");
-        let nodes = document.getElementById("bead-list").childNodes;
+    onBeadRemove(event) {
+        let realTarget = findParentWithClass(event.target, 'bead-view');
+        let nodes = document.getElementById('bead-list').childNodes;
         let index = 0;
         let selected = -1;
         for (const child of nodes) {
@@ -372,8 +364,8 @@ class Visualization {
     }
 
     onNameChange(event) {
-        let realTarget = findParentWithClass(event.target, "bead-view");
-        let nodes = document.getElementById("bead-list").childNodes;
+        let realTarget = findParentWithClass(event.target, 'bead-view');
+        let nodes = document.getElementById('bead-list').childNodes;
         let index = 0;
         for (const child of nodes) {
             if (child === realTarget) {
@@ -384,10 +376,10 @@ class Visualization {
         this.updateName();
     }
 
-	selectionString(bead) {
+    selectionString(bead) {
         if (bead.atoms.length > 0) {
-            let sel = "@";
-            for (let i=0; i < bead.atoms.length; i++) {
+            let sel = '@';
+            for (let i = 0; i < bead.atoms.length; i++) {
                 if (sel !== '@') {
                     sel = sel + ',';
                 }
@@ -395,7 +387,7 @@ class Visualization {
             }
             return sel;
         }
-        return "not all";
+        return 'not all';
     }
 
     updateName() {
@@ -415,30 +407,29 @@ class Visualization {
     }
 
     createBeadListItem(bead) {
-
         let textNode;
-        let list = document.getElementById("bead-list");
-        let item = document.createElement("li");
+        let list = document.getElementById('bead-list');
+        let item = document.createElement('li');
 
-        item.classList.add("bead-view");
+        item.classList.add('bead-view');
 
-       /* ===============================
+        /* ===============================
         HEADER ROW (Fields + Delete)
         =============================== */
 
-        let headerRow = document.createElement("div");
-        headerRow.classList.add("bead-header");
+        let headerRow = document.createElement('div');
+        headerRow.classList.add('bead-header');
 
-        let fieldsNode = document.createElement("div");
-        fieldsNode.classList.add("bead-fields");
+        let fieldsNode = document.createElement('div');
+        fieldsNode.classList.add('bead-fields');
 
         // helper to build labeled field
         const addLabeledField = (labelText, inputEl) => {
-            const wrap = document.createElement("div");
-            wrap.classList.add("field");
+            const wrap = document.createElement('div');
+            wrap.classList.add('field');
 
-            const lab = document.createElement("div");
-            lab.classList.add("field-label");
+            const lab = document.createElement('div');
+            lab.classList.add('field-label');
             lab.textContent = labelText;
 
             wrap.appendChild(lab);
@@ -447,43 +438,43 @@ class Visualization {
         };
 
         // NAME
-        let nameNode = document.createElement("input");
-        nameNode.type = "text";
+        let nameNode = document.createElement('input');
+        nameNode.type = 'text';
         nameNode.value = bead.name;
-        nameNode.classList.add("bead-name");
+        nameNode.classList.add('bead-name');
         nameNode.oninput = (event) => this.onNameChange(event);
-        nameNode.addEventListener("mousedown", e => e.stopPropagation());
-        addLabeledField("Name", nameNode);
+        nameNode.addEventListener('mousedown', (e) => e.stopPropagation());
+        addLabeledField('Name', nameNode);
 
         // TYPE
-        let typeNode = document.createElement("input");
-        typeNode.type = "text";
+        let typeNode = document.createElement('input');
+        typeNode.type = 'text';
         typeNode.value = bead.type;
-        typeNode.classList.add("bead-type");
+        typeNode.classList.add('bead-type');
         typeNode.oninput = (event) => {
             bead.type = event.target.value;
             this.updateName();
         };
-        typeNode.addEventListener("mousedown", e => e.stopPropagation());
-        addLabeledField("Type", typeNode);
+        typeNode.addEventListener('mousedown', (e) => e.stopPropagation());
+        addLabeledField('Type', typeNode);
 
         // CHARGE
-        let chargeNode = document.createElement("input");
-        chargeNode.type = "number";
-        chargeNode.step = "0.01";
+        let chargeNode = document.createElement('input');
+        chargeNode.type = 'number';
+        chargeNode.step = '0.01';
         chargeNode.value = bead.charge;
-        chargeNode.classList.add("bead-charge");
+        chargeNode.classList.add('bead-charge');
         chargeNode.oninput = (event) => {
             bead.charge = event.target.value;
             this.updateName();
         };
-        chargeNode.addEventListener("mousedown", e => e.stopPropagation());
-        addLabeledField("Charge", chargeNode);
+        chargeNode.addEventListener('mousedown', (e) => e.stopPropagation());
+        addLabeledField('Charge', chargeNode);
 
         // DELETE BUTTON
-        let removeNode = document.createElement("button");
-        removeNode.textContent = "Delete";
-        removeNode.classList.add("delete-bead");
+        let removeNode = document.createElement('button');
+        removeNode.textContent = 'Delete';
+        removeNode.classList.add('delete-bead');
         removeNode.onclick = (event) => {
             event.stopPropagation();
             this.onBeadRemove(event);
@@ -499,30 +490,30 @@ class Visualization {
         ATOM LIST
         =============================== */
 
-        let nameList = document.createElement("ul");
+        let nameList = document.createElement('ul');
 
         if (bead.atoms.length > 0) {
-
             for (let i = 0; i < bead.atoms.length; i++) {
-
                 const atom = bead.atoms[i];
                 const name = this.collection.atomName(atom);
 
-                const w = (bead.atomWeights && bead.atomWeights[atom.index])
-                    ? bead.atomWeights[atom.index]
-                    : 1;
+                const w =
+                    bead.atomWeights && bead.atomWeights[atom.index]
+                        ? bead.atomWeights[atom.index]
+                        : 1;
 
-                let subitem = document.createElement("li");
+                let subitem = document.createElement('li');
 
-                const label = (w > 1) ? `${name} ×${w}` : name;
+                const label = w > 1 ? `${name} ×${w}` : name;
                 textNode = document.createTextNode(label);
 
                 subitem.appendChild(textNode);
 
                 if (this.collection.countBeadsForAtom(atom) > 1) {
-                    let shareitem = document.createElement("abbr");
-                    shareitem.title = "This atom is shared between multiple beads.";
-                    shareitem.textContent = " 🔗";
+                    let shareitem = document.createElement('abbr');
+                    shareitem.title =
+                        'This atom is shared between multiple beads.';
+                    shareitem.textContent = ' 🔗';
                     subitem.appendChild(shareitem);
                 }
 
@@ -541,7 +532,7 @@ class Visualization {
         list.appendChild(item);
 
         if (bead === this.currentBead) {
-            item.classList.add("selected-bead");
+            item.classList.add('selected-bead');
             item.scrollIntoView(false);
         }
     }
@@ -582,7 +573,7 @@ class Visualization {
     drawCG() {
         let normalColor = [0.58, 0.79, 0.66];
         let selectedColor = [0.25, 0.84, 0.96];
-        let color = normalColor;
+        let color;
         let opacity = 0.2;
         if (this.showCG) {
             opacity = 1;
@@ -590,7 +581,7 @@ class Visualization {
         if (this.shapeComp != null) {
             this.stage.removeComponent(this.shapeComp);
         }
-        let shape = new NGL.Shape("shape");
+        let shape = new NGL.Shape('shape');
         for (let bead of this.collection.beads) {
             color = normalColor;
             if (bead === this.currentBead) {
@@ -601,10 +592,9 @@ class Visualization {
             }
         }
         this.shapeComp = this.stage.addComponentFromObject(shape);
-        this.shapeComp.addRepresentation("buffer", {opacity: opacity});
+        this.shapeComp.addRepresentation('buffer', { opacity: opacity });
     }
 }
-
 
 function findParentWithClass(element, className) {
     let node = element;
@@ -617,28 +607,26 @@ function findParentWithClass(element, className) {
     return null;
 }
 
-
 function generateNDX(collection) {
-    let ndx = "";
+    let ndx = '';
     for (const bead of collection.beads) {
-        ndx += "[ " + bead.name + " ]\n";
+        ndx += '[ ' + bead.name + ' ]\n';
         for (const atom of bead.atoms) {
-            ndx += (atom.index + 1) + " ";
+            ndx += atom.index + 1 + ' ';
         }
-        ndx += "\n\n";
+        ndx += '\n\n';
     }
     return ndx;
 }
 
-
 function generateMap(collection) {
-    let output = "[ to ]\nmartini\n\n[ martini ]\n";
+    let output = '[ to ]\nmartini\n\n[ martini ]\n';
     let atomToBeads = {};
     let atoms = [];
     let atomname;
     let index;
     for (const bead of collection.beads) {
-        output += bead.name + " ";
+        output += bead.name + ' ';
         for (const atom of bead.atoms) {
             atomname = collection.atomName(atom);
             if (!atomToBeads[atomname]) {
@@ -648,31 +636,32 @@ function generateMap(collection) {
             atomToBeads[atomname].push(bead.name);
         }
     }
-    output += "\n\n";
+    output += '\n\n';
 
-    output += "[ atoms ]\n";
+    output += '[ atoms ]\n';
     index = 0;
-    atoms.sort(function(a, b) {return a.index - b.index});
+    atoms.sort(function (a, b) {
+        return a.index - b.index;
+    });
     for (const atom of atoms) {
         index += 1;
         atomname = collection.atomName(atom);
-        output += index + "\t" + atomname;
+        output += index + '\t' + atomname;
         for (const bead of atomToBeads[atomname]) {
-            output += "\t" + bead;
+            output += '\t' + bead;
         }
-        output += "\n";
+        output += '\n';
     }
 
     return output;
 }
 
 function generatePythonAssignments(collection) {
-
     const beads = collection.beads || [];
-    if (beads.length === 0) return "";
+    if (beads.length === 0) return '';
 
     // Determine residue name
-    let resname = "UNK";
+    let resname = 'UNK';
     for (const bead of beads) {
         if (bead.atoms && bead.atoms.length > 0) {
             resname = bead.resname;
@@ -682,42 +671,44 @@ function generatePythonAssignments(collection) {
 
     let lines = [];
 
-    lines.push("mapping = {");
-    lines.push("    ## resname");
+    lines.push('mapping = {');
+    lines.push('    ## resname');
     lines.push(`    "${resname}": {`);
-    lines.push("    ## bead name; type(opt.);   charge(opt.);         Mapping.");
+    lines.push(
+        '    ## bead name; type(opt.);   charge(opt.);         Mapping.',
+    );
 
     for (const bead of beads) {
-
         const beadName = bead.name;
-        const beadType = bead.type || "type";
+        const beadType = bead.type || 'type';
         const beadCharge = bead.charge ?? 0;
 
-        const atomNames = collection.expandedAtomNames(bead)
+        const atomNames = collection
+            .expandedAtomNames(bead)
             .map((name) => `'${name}'`)
-            .join(",");
+            .join(',');
 
         lines.push(
-            `        "${beadName}": {"type": "${beadType}", "charge": ${beadCharge}, "atoms": [${atomNames}]},`
+            `        "${beadName}": {"type": "${beadType}", "charge": ${beadCharge}, "atoms": [${atomNames}]},`,
         );
     }
 
-    lines.push("    },");
-    lines.push("}");
+    lines.push('    },');
+    lines.push('}');
 
-    return lines.join("\n") + "\n";
+    return lines.join('\n') + '\n';
 }
 
 function generateGRO(collection) {
-    let resid = "    0";
-    let resname = "";
-    let atomname = "    0";
-    let atomid = 0;
+    let resid;
+    let resname;
+    let atomname;
+    let atomid;
     let x;
     let y;
     let z;
     let center;
-    let output = "Generated with cgbuilder\n" + collection.beads.length + "\n";
+    let output = 'Generated with cgbuilder\n' + collection.beads.length + '\n';
     let counter = 0;
     for (const bead of collection.beads) {
         counter += 1;
@@ -731,22 +722,25 @@ function generateGRO(collection) {
         z = (center.z / 10).toFixed(3).padStart(8);
         output += resid + resname + atomname + atomid + x + y + z + '\n';
     }
-    output += "10 10 10\n";
+    output += '10 10 10\n';
     return output;
 }
 
 /* Taken from <https://ourcodeworld.com/articles/read/189/how-to-create-a-file-and-generate-a-download-with-javascript-in-the-browser-without-a-server> */
 function download(filename, text) {
-  let element = document.createElement('a');
-  element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
-  element.setAttribute('download', filename);
+    let element = document.createElement('a');
+    element.setAttribute(
+        'href',
+        'data:text/plain;charset=utf-8,' + encodeURIComponent(text),
+    );
+    element.setAttribute('download', filename);
 
-  element.style.display = 'none';
-  document.body.appendChild(element);
+    element.style.display = 'none';
+    document.body.appendChild(element);
 
-  element.click();
+    element.click();
 
-  document.body.removeChild(element);
+    document.body.removeChild(element);
 }
 
 function copyTextToClipboard(text) {
@@ -756,16 +750,16 @@ function copyTextToClipboard(text) {
     }
 
     // Fallback for non-HTTPS / older browsers
-    let textarea = document.createElement("textarea");
+    let textarea = document.createElement('textarea');
     textarea.value = text;
-    textarea.style.position = "fixed";
-    textarea.style.left = "-9999px";
-    textarea.style.top = "-9999px";
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-9999px';
+    textarea.style.top = '-9999px';
     document.body.appendChild(textarea);
     textarea.focus();
     textarea.select();
     try {
-        document.execCommand("copy");
+        document.execCommand('copy');
     } finally {
         document.body.removeChild(textarea);
     }
@@ -773,11 +767,11 @@ function copyTextToClipboard(text) {
 }
 
 function parseOriginalAtomNames(content, filename) {
-    const lower = (filename || "").toLowerCase();
-    if (lower.endsWith(".pdb") || lower.endsWith(".ent")) {
+    const lower = (filename || '').toLowerCase();
+    if (lower.endsWith('.pdb') || lower.endsWith('.ent')) {
         return parsePDBAtomNames(content);
     }
-    if (lower.endsWith(".gro")) {
+    if (lower.endsWith('.gro')) {
         return parseGROAtomNames(content);
     }
     return [];
@@ -787,7 +781,7 @@ function parsePDBAtomNames(content) {
     const names = [];
     const lines = content.split(/\r?\n/);
     for (const line of lines) {
-        if (line.startsWith("ATOM  ") || line.startsWith("HETATM")) {
+        if (line.startsWith('ATOM  ') || line.startsWith('HETATM')) {
             names.push(line.substring(12, 16).trim());
         }
     }
@@ -814,12 +808,13 @@ function parseGROAtomNames(content) {
 }
 
 function readOriginalAtomNames(file) {
-    const lower = (file && file.name ? file.name : "").toLowerCase();
+    const lower = (file && file.name ? file.name : '').toLowerCase();
     // Skip compressed input: NGL can read it, but browser text parsing here cannot.
-    if (lower.endsWith(".gz")) {
+    if (lower.endsWith('.gz')) {
         return Promise.resolve([]);
     }
-    return file.text()
+    return file
+        .text()
         .then((content) => parseOriginalAtomNames(content, file.name))
         .catch(() => []);
 }
@@ -832,7 +827,7 @@ function bondAwareRepresentationParams(overrides = {}) {
             bondSpacing: 1,
             bondScale: 0.4,
         },
-        overrides
+        overrides,
     );
 }
 
@@ -854,22 +849,28 @@ function loadMolecule(event, stage) {
         .then(([names, component]) => {
             // Ensure original atom names are applied before any UI/render
             collection.setOriginalAtomNames(names || []);
-            component.addRepresentation("ball+stick", bondAwareRepresentationParams());
+            component.addRepresentation(
+                'ball+stick',
+                bondAwareRepresentationParams(),
+            );
             component.autoView();
             vizu.attachAALabels(component);
             vizu.attachRepresentation(component);
             vizu.updateSelection();
         })
         .catch((err) => {
-            console.error("Error loading molecule or reading original atom names:", err);
+            console.error(
+                'Error loading molecule or reading original atom names:',
+                err,
+            );
         });
     // Bing the new bead buttons.
-    let buttons = document.getElementsByClassName("new-bead");
+    let buttons = document.getElementsByClassName('new-bead');
     for (const button of buttons) {
         button.onclick = (event) => vizu.onNewBead(event);
         button.disabled = false;
     }
-	// Bind our own selection behaviour.
+    // Bind our own selection behaviour.
     // We need to use the "arrow" function so that `this` is defined and refer
     // to the right object in the `onClick` method. See
     // <https://stackoverflow.com/questions/20279484/how-to-access-the-correct-this-inside-a-callback>.
@@ -881,30 +882,35 @@ function main() {
     // <https://github.com/nglviewer/ngl/issues/878#issuecomment-913504711>
     const stageContainer = document.getElementById('viewport');
     function maybeScroll(event) {
-        if (stageContainer.contains(event.target)) {     // If wheel event occurred within the viewer
-            event.preventDefault();                      // prevent the default (scrolling the page)
+        if (stageContainer.contains(event.target)) {
+            // If wheel event occurred within the viewer
+            event.preventDefault(); // prevent the default (scrolling the page)
         }
     }
-    window.addEventListener('wheel', maybeScroll, {passive: false});
+    window.addEventListener('wheel', maybeScroll, { passive: false });
 
     // Create NGL Stage object
-    let stage = new NGL.Stage( "viewport" );
+    let stage = new NGL.Stage('viewport');
 
     // Handle window resizing
-    window.addEventListener( "resize", function( event ){
-        stage.handleResize();
-    }, false );
+    window.addEventListener(
+        'resize',
+        function () {
+            stage.handleResize();
+        },
+        false,
+    );
 
-	let mol_select = document.getElementById("mol-select");
-	mol_select.onchange = (event) => loadMolecule(event, stage);
-	
-	// Remove preset action on atom pick.
-	// As of NGL v2.0.0-dev.11, the left click atom pick is bind to the
-	// centering of the view on the selected atom. In previous versions, this
-	// behavior was linked on shift-click, instead.
-	stage.mouseControls.remove("clickPick-left");
+    let mol_select = document.getElementById('mol-select');
+    mol_select.onchange = (event) => loadMolecule(event, stage);
 
-    let buttons = document.getElementsByClassName("new-bead");
+    // Remove preset action on atom pick.
+    // As of NGL v2.0.0-dev.11, the left click atom pick is bind to the
+    // centering of the view on the selected atom. In previous versions, this
+    // behavior was linked on shift-click, instead.
+    stage.mouseControls.remove('clickPick-left');
+
+    let buttons = document.getElementsByClassName('new-bead');
     for (const button of buttons) {
         button.disabled = true;
     }
