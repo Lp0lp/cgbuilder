@@ -86,6 +86,8 @@ class Bead {
 
     // weighted center
     get center() {
+        if (this.atoms.length === 0) return new NGL.Vector3(0, 0, 0);
+
         let mass = 0;
         let position = new NGL.Vector3(0, 0, 0);
         for (const atom of this.atoms) {
