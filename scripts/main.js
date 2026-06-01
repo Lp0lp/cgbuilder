@@ -123,6 +123,7 @@ class BeadCollection {
         this._beads = [];
         this._current = null;
         this._largestIndex = -1;
+        this._atomNames = new Map();
         this.newBead();
     }
 
@@ -159,6 +160,46 @@ class BeadCollection {
             }
         }
         return count;
+    }
+
+    setOriginalAtomNames(names) {
+        this._atomNames.clear();
+        if (!Array.isArray(names)) {
+            return;
+        }
+        // Parsed input atom names must remain aligned with NGL atom.index.
+        for (let i = 0; i < names.length; i++) {
+            this._atomNames.set(i, names[i]);
+        }
+    }
+
+    atomName(atom) {
+        return this._atomNames.get(atom.index) ?? atom.atomname;
+    }
+
+    atomNames(atoms) {
+        return atoms.map((atom) => this.atomName(atom));
+    }
+
+    expandedAtomNames(bead) {
+        const names = [];
+        for (const atom of bead.atoms) {
+            const weight = bead.atomWeights[atom.index] || 1;
+            for (let i = 0; i < weight; i++) {
+                names.push(this.atomName(atom));
+            }
+        }
+        return names;
+    }
+
+    structureAtomNames(structure) {
+        const names = [];
+        if (structure && typeof structure.eachAtom === "function") {
+            structure.eachAtom((atom) => {
+                names.push(this.atomName(atom));
+            });
+        }
+        return names;
     }
 }
 
@@ -234,7 +275,9 @@ class Visualization {
         this.aa_labels = component.addRepresentation(
             "label",
             {
-                labelType: "atomname",
+                labelType: "text",
+                labelText: this.collection.structureAtomNames(component.structure),
+                labelGrouping: "atom",
             },
         );
 
@@ -463,7 +506,7 @@ class Visualization {
             for (let i = 0; i < bead.atoms.length; i++) {
 
                 const atom = bead.atoms[i];
-                const name = atom.atomname;
+                const name = this.collection.atomName(atom);
 
                 const w = (bead.atomWeights && bead.atomWeights[atom.index])
                     ? bead.atomWeights[atom.index]
@@ -597,7 +640,7 @@ function generateMap(collection) {
     for (const bead of collection.beads) {
         output += bead.name + " ";
         for (const atom of bead.atoms) {
-            atomname = atom.atomname;
+            atomname = collection.atomName(atom);
             if (!atomToBeads[atomname]) {
                 atomToBeads[atomname] = [];
                 atoms.push(atom);
@@ -612,8 +655,9 @@ function generateMap(collection) {
     atoms.sort(function(a, b) {return a.index - b.index});
     for (const atom of atoms) {
         index += 1;
-        output += index + "\t" + atom.atomname;
-        for (const bead of atomToBeads[atom.atomname]) {
+        atomname = collection.atomName(atom);
+        output += index + "\t" + atomname;
+        for (const bead of atomToBeads[atomname]) {
             output += "\t" + bead;
         }
         output += "\n";
@@ -649,12 +693,9 @@ function generatePythonAssignments(collection) {
         const beadType = bead.type || "type";
         const beadCharge = bead.charge ?? 0;
 
-        // expand atoms if weighted
-        const atoms = (typeof bead.expandedAtoms === "function")
-            ? bead.expandedAtoms()
-            : bead.atoms;
-
-        const atomNames = atoms.map(a => `'${a.atomname}'`).join(",");
+        const atomNames = collection.expandedAtomNames(bead)
+            .map((name) => `'${name}'`)
+            .join(",");
 
         lines.push(
             `        "${beadName}": {"type": "${beadType}", "charge": ${beadCharge}, "atoms": [${atomNames}]},`
@@ -731,6 +772,58 @@ function copyTextToClipboard(text) {
     return Promise.resolve();
 }
 
+function parseOriginalAtomNames(content, filename) {
+    const lower = (filename || "").toLowerCase();
+    if (lower.endsWith(".pdb") || lower.endsWith(".ent")) {
+        return parsePDBAtomNames(content);
+    }
+    if (lower.endsWith(".gro")) {
+        return parseGROAtomNames(content);
+    }
+    return [];
+}
+
+function parsePDBAtomNames(content) {
+    const names = [];
+    const lines = content.split(/\r?\n/);
+    for (const line of lines) {
+        if (line.startsWith("ATOM  ") || line.startsWith("HETATM")) {
+            names.push(line.substring(12, 16).trim());
+        }
+    }
+    return names;
+}
+
+function parseGROAtomNames(content) {
+    const names = [];
+    const lines = content.split(/\r?\n/);
+    if (lines.length < 3) {
+        return names;
+    }
+    const count = parseInt(lines[1].trim(), 10);
+    if (!Number.isFinite(count) || count <= 0) {
+        return names;
+    }
+    const atomLines = lines.slice(2, 2 + count);
+    for (const line of atomLines) {
+        if (line.length >= 15) {
+            names.push(line.substring(10, 15).trim());
+        }
+    }
+    return names;
+}
+
+function readOriginalAtomNames(file) {
+    const lower = (file && file.name ? file.name : "").toLowerCase();
+    // Skip compressed input: NGL can read it, but browser text parsing here cannot.
+    if (lower.endsWith(".gz")) {
+        return Promise.resolve([]);
+    }
+    return file.text()
+        .then((content) => parseOriginalAtomNames(content, file.name))
+        .catch(() => []);
+}
+
 // Helper to ensure that double and triple bonds are properly rendered
 function bondAwareRepresentationParams(overrides = {}) {
     return Object.assign(
@@ -752,14 +845,24 @@ function loadMolecule(event, stage) {
     // Setup the interface
     let vizu = new Visualization(collection, stage);
     // Load the molecule
-    let input = event.target.files[0]
-	stage.loadFile(input).then(function (component) {
-        component.addRepresentation("ball+stick", bondAwareRepresentationParams());
-	    component.autoView();
-	    vizu.attachAALabels(component);
-	    vizu.attachRepresentation(component);
-	    vizu.updateSelection();
-	});
+    let input = event.target.files[0];
+
+    const namePromise = readOriginalAtomNames(input);
+    const componentPromise = stage.loadFile(input);
+
+    Promise.all([namePromise, componentPromise])
+        .then(([names, component]) => {
+            // Ensure original atom names are applied before any UI/render
+            collection.setOriginalAtomNames(names || []);
+            component.addRepresentation("ball+stick", bondAwareRepresentationParams());
+            component.autoView();
+            vizu.attachAALabels(component);
+            vizu.attachRepresentation(component);
+            vizu.updateSelection();
+        })
+        .catch((err) => {
+            console.error("Error loading molecule or reading original atom names:", err);
+        });
     // Bing the new bead buttons.
     let buttons = document.getElementsByClassName("new-bead");
     for (const button of buttons) {
