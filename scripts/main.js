@@ -1,4 +1,4 @@
-`class Bead {
+class Bead {
 	constructor () {
 		this._name = null;
         this._type = "TYPe";     
