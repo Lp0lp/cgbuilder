@@ -168,7 +168,10 @@ describe('Parsing helpers', () => {
 
 describe('Representation params helper', () => {
     it('returns defaults and applies overrides', () => {
-        const out = bondAwareRepresentationParams({ bondScale: 0.9, sele: 'all' });
+        const out = bondAwareRepresentationParams({
+            bondScale: 0.9,
+            sele: 'all',
+        });
         expect(out.multipleBond).toBe(true);
         expect(out.bondSpacing).toBe(1);
         expect(out.bondScale).toBe(0.9);
