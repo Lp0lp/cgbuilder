@@ -8,3 +8,11 @@ Double-bond rendering notes
 ---------------------------
 
 - For consistent display of double and triple bonds prefer input formats that include bond-order metadata such as SDF (.sdf, .sd) or MOL2 (.mol2). PDB and GRO files often lack bond-order information and may not show multiple bonds correctly.
+
+Testing
+-------
+
+- Install dependencies: `npm install`
+- Run tests in watch mode: `npm test`
+- Run tests once (CI style): `npm run test:run`
+- Run lint checks: `npm run lint`

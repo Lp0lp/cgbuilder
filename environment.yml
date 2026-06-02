@@ -1,0 +1,20 @@
+# Conda environment for cgbuilder
+# Installs Node.js (for running the dev tooling and the web app) and git.
+# After creating the environment, activate it and install npm dependencies:
+#   conda activate cgbuilder
+#   npm install
+
+name: cgbuilder
+channels:
+    - conda-forge
+    - defaults
+dependencies:
+    - nodejs=20.19.*
+    - git
+
+# Project npm devDependencies (from package.json):
+# - @eslint/js: ^10.0.1
+# - eslint: ^10.4.1
+# - happy-dom: ^20.9.0
+# - prettier: ^3.8.3
+# - vitest: ^4.1.8

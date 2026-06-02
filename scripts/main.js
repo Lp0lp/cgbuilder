@@ -918,4 +918,23 @@ function main() {
     }
 }
 
-window.onload = main;
+if (typeof window !== 'undefined') {
+    window.onload = main;
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        Bead,
+        BeadCollection,
+        Visualization,
+        findParentWithClass,
+        generateNDX,
+        generateMap,
+        generatePythonAssignments,
+        generateGRO,
+        parseOriginalAtomNames,
+        parsePDBAtomNames,
+        parseGROAtomNames,
+        bondAwareRepresentationParams,
+    };
+}

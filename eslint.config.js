@@ -18,8 +18,25 @@ module.exports = [
                 console: 'readonly',
                 setTimeout: 'readonly',
                 Promise: 'readonly',
+                module: 'readonly',
                 // External library loaded via CDN
                 NGL: 'readonly',
+            },
+        },
+    },
+    {
+        files: ['tests/**/*.js'],
+        languageOptions: {
+            ecmaVersion: 2020,
+            sourceType: 'script',
+            globals: {
+                describe: 'readonly',
+                it: 'readonly',
+                expect: 'readonly',
+                beforeEach: 'readonly',
+                afterEach: 'readonly',
+                vi: 'readonly',
+                require: 'readonly',
             },
         },
     },
