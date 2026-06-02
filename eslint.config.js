@@ -2,7 +2,7 @@ const js = require('@eslint/js');
 
 module.exports = [
     {
-        ignores: ['eslint.config.js', 'prettier.config.js'],
+        ignores: ['eslint.config.js', 'prettier.config.js', 'vitest.config.js'],
     },
     js.configs.recommended,
     {
