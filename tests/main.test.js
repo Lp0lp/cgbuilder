@@ -197,8 +197,8 @@ describe('Parsing helpers', () => {
     });
 });
 
-describe('Bromopentane mixed-case naming', () => {
-    it('keeps Br mixed-case in viewport labels and exported text outputs', () => {
+describe('Halogen mixed-case naming', () => {
+    it('keeps mixed-case Halogens in viewport labels and exported text outputs', () => {
         const parsedNames = parseOriginalAtomNames(
             bromopentaneSDF,
             'bromopentane.sdf',
@@ -261,6 +261,47 @@ describe('Bromopentane mixed-case naming', () => {
         const pyOutput = generatePythonAssignments(collection);
         expect(pyOutput).toContain("'Br'");
         expect(pyOutput).not.toContain("'BR'");
+    });
+
+    it('renders Br in bead list UI text', () => {
+        const parsedNames = parseOriginalAtomNames(
+            bromopentaneSDF,
+            'bromopentane.sdf',
+        );
+        const collection = new BeadCollection();
+        collection.setOriginalAtomNames(parsedNames);
+
+        const bead = collection.currentBead;
+        bead.name = 'B0';
+
+        const atom = {
+            index: 0,
+            atomname: 'BR',
+            resname: 'HET',
+            resno: 1,
+            positionToVector3() {
+                return { add() {}, divideScalar() {} };
+            },
+        };
+        bead.addAtom(atom);
+
+        document.body.innerHTML = '<ul id="bead-list"></ul>';
+        if (!Element.prototype.scrollIntoView) {
+            Element.prototype.scrollIntoView = () => {};
+        }
+
+        const viz = Object.create(Visualization.prototype);
+        viz.collection = collection;
+        viz.updateName = () => {};
+        viz.updateSelection = () => {};
+
+        viz.createBeadListItem(bead);
+
+        const itemText = document
+            .querySelector('#bead-list .bead-view ul li')
+            .textContent.trim();
+        expect(itemText).toBe('Br');
+        expect(itemText).not.toBe('BR');
     });
 });
 

@@ -38,6 +38,8 @@ module.exports = [
                 vi: 'readonly',
                 require: 'readonly',
                 __dirname: 'readonly',
+                document: 'readonly',
+                Element: 'readonly',
             },
         },
     },
