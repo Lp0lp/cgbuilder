@@ -37,6 +37,7 @@ module.exports = [
                 afterEach: 'readonly',
                 vi: 'readonly',
                 require: 'readonly',
+                __dirname: 'readonly',
             },
         },
     },

@@ -776,7 +776,79 @@ function parseOriginalAtomNames(content, filename) {
     if (lower.endsWith('.gro')) {
         return parseGROAtomNames(content);
     }
+    if (
+        lower.endsWith('.sdf') ||
+        lower.endsWith('.sd') ||
+        lower.endsWith('.mol')
+    ) {
+        return parseSDFOrMOLAtomNames(content);
+    }
     return [];
+}
+
+function parseSDFOrMOLAtomNames(content) {
+    const lines = content.split(/\r?\n/);
+
+    // V3000 molfiles store atom records inside a dedicated ATOM block.
+    const v3000Names = parseV3000AtomNames(lines);
+    if (v3000Names.length > 0) {
+        return v3000Names;
+    }
+
+    // V2000 molfiles use a fixed-width atom block after the counts line.
+    return parseV2000AtomNames(lines);
+}
+
+function parseV2000AtomNames(lines) {
+    const names = [];
+    if (lines.length < 4) {
+        return names;
+    }
+
+    // First 3 chars of the counts line contain the atom count in V2000.
+    const countLine = lines[3] || '';
+    const atomCount = parseInt(countLine.substring(0, 3).trim(), 10);
+    if (!Number.isFinite(atomCount) || atomCount <= 0) {
+        return names;
+    }
+
+    const atomBlockStart = 4;
+    for (let i = 0; i < atomCount; i++) {
+        const line = lines[atomBlockStart + i] || '';
+        if (!line) {
+            break;
+        }
+        const symbol = line.substring(31, 34).trim();
+        names.push(symbol || 'X');
+    }
+    return names;
+}
+
+function parseV3000AtomNames(lines) {
+    const names = [];
+    let inAtomBlock = false;
+
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed === 'M  V30 BEGIN ATOM') {
+            inAtomBlock = true;
+            continue;
+        }
+        if (trimmed === 'M  V30 END ATOM') {
+            break;
+        }
+        if (!inAtomBlock) {
+            continue;
+        }
+
+        // Typical line: M  V30 <idx> <symbol> <x> <y> <z> <aamap>
+        const parts = trimmed.split(/\s+/);
+        if (parts.length >= 4 && parts[0] === 'M' && parts[1] === 'V30') {
+            names.push(parts[3]);
+        }
+    }
+
+    return names;
 }
 
 function parsePDBAtomNames(content) {

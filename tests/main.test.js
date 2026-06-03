@@ -1,6 +1,10 @@
+const fs = require('node:fs');
+const path = require('node:path');
+
 const {
     Bead,
     BeadCollection,
+    Visualization,
     generateNDX,
     generateMap,
     generatePythonAssignments,
@@ -10,6 +14,9 @@ const {
     parseOriginalAtomNames,
     bondAwareRepresentationParams,
 } = require('../scripts/main.js');
+
+const bromopentanePath = path.resolve(__dirname, '../data/bromopentane.sdf');
+const bromopentaneSDF = fs.readFileSync(bromopentanePath, 'utf8');
 
 describe('Bead', () => {
     it('tracks atom weights and removes atoms when weight reaches zero', () => {
@@ -159,10 +166,101 @@ describe('Parsing helpers', () => {
             '    1MOL     CA    1   0.000   0.000   0.000',
             '   1.00000   1.00000   1.00000',
         ].join('\n');
+        const expected = [
+            'Br',
+            'C',
+            'C',
+            'C',
+            'C',
+            'C',
+            'H',
+            'H',
+            'H',
+            'H',
+            'H',
+            'H',
+            'H',
+            'H',
+            'H',
+            'H',
+            'H',
+        ];
 
         expect(parseOriginalAtomNames(pdb, 'foo.pdb')).toEqual(['CA']);
         expect(parseOriginalAtomNames(gro, 'foo.gro')).toEqual(['CA']);
-        expect(parseOriginalAtomNames('x', 'foo.sdf')).toEqual([]);
+        expect(parseOriginalAtomNames(bromopentaneSDF, 'foo.sdf')).toEqual(
+            expected,
+        );
+        expect(parseOriginalAtomNames(bromopentaneSDF, 'foo.mol')).toEqual(
+            expected,
+        );
+    });
+});
+
+describe('Bromopentane mixed-case naming', () => {
+    it('keeps Br mixed-case in viewport labels and exported text outputs', () => {
+        const parsedNames = parseOriginalAtomNames(
+            bromopentaneSDF,
+            'bromopentane.sdf',
+        );
+        const collection = new BeadCollection();
+        collection.setOriginalAtomNames(parsedNames);
+
+        // Simulate NGL atoms where atomname is uppercase, then verify our
+        // parsed SDF map keeps mixed-case names for display and outputs.
+        const atoms = parsedNames.map((_, index) => ({
+            index,
+            atomname: index === 0 ? 'BR' : parsedNames[index],
+            resname: 'HET',
+            resno: 1,
+            positionToVector3() {
+                return { add() {}, divideScalar() {} };
+            },
+        }));
+
+        const bead = collection.currentBead;
+        bead.name = 'B0';
+        bead.type = 'C1';
+        bead.charge = 0;
+        for (const atom of atoms) {
+            bead.addAtom(atom);
+        }
+
+        let aaLabelParams = null;
+        const component = {
+            structure: {
+                eachAtom(callback) {
+                    for (const atom of atoms) {
+                        callback(atom);
+                    }
+                },
+            },
+            addRepresentation(kind, params) {
+                if (kind === 'label') {
+                    aaLabelParams = params;
+                }
+                return {
+                    visible: true,
+                    setVisibility() {},
+                    setSelection() {},
+                };
+            },
+        };
+
+        const viz = Object.create(Visualization.prototype);
+        viz.collection = collection;
+        viz.attachAALabels(component);
+
+        expect(aaLabelParams.labelText[0]).toBe('Br');
+        expect(aaLabelParams.labelText[0]).not.toBe('BR');
+
+        const mapOutput = generateMap(collection);
+        expect(mapOutput).toContain('\tBr');
+        expect(mapOutput).not.toContain('\tBR');
+
+        const pyOutput = generatePythonAssignments(collection);
+        expect(pyOutput).toContain("'Br'");
+        expect(pyOutput).not.toContain("'BR'");
     });
 });
 
