@@ -283,3 +283,88 @@ button.copied {
   color: white;
   border-color: #2bb673;
 }
+
+/* Toggle switches */
+.toggle-switch {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    user-select: none;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.toggle-switch input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-track {
+    position: relative;
+    width: 32px;
+    height: 18px;
+    background: #c6cbd2;
+    border-radius: 9px;
+    transition: background 0.2s ease;
+    flex-shrink: 0;
+}
+
+.toggle-switch input:checked + .toggle-track {
+    background: #2b6cb0;
+}
+
+.toggle-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.toggle-switch input:checked + .toggle-track .toggle-thumb {
+    transform: translateX(14px);
+}
+
+.toggle-switch input:disabled + .toggle-track {
+    opacity: 0.5;
+}
+
+.toggle-switch:has(input:disabled) {
+    cursor: default;
+    opacity: 0.6;
+}
+
+/* SASA panel */
+#sasa-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 10px;
+    background: #eef0f4;
+    border: 1px solid #c6cbd2;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.sasa-row {
+    display: flex;
+    gap: 8px;
+    justify-content: space-between;
+}
+
+.sasa-label {
+    color: #666;
+    font-weight: 500;
+}
+
+.sasa-diff-good { color: #2bb673; font-weight: 600; }
+.sasa-diff-warn { color: #d97706; font-weight: 600; }
+.sasa-diff-bad  { color: #dc2626; font-weight: 600; }

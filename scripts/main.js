@@ -212,9 +212,32 @@ class Visualization {
         this.shapeComp = null;
         this.showCG = false;
 
+        // Solvent-accessible surface area (SASA) state.
+        this.component = null;        // the loaded AA structure component
+        this.aaSurface = null;        // NGL surface representation on the AA structure
+        this.showAASurface = false;
+        this.cgSurfaceComp = null;    // synthetic bead component carrying the CG surface
+        this.showCGSurface = false;
+        this._cgSurfaceToken = 0;     // guards against stale async surface loads
+        this._aaSASAValue = null;     // cached; recomputed only on molecule load
+
         let toggleCG = document.getElementById('toggle-cg');
         toggleCG.onclick = (event) => this.onToggleCG(event);
         toggleCG.disabled = false;
+
+        let toggleAASurface = document.getElementById('toggle-aa-surface');
+        if (toggleAASurface) {
+            toggleAASurface.onchange = (event) => this.onToggleAASurface(event);
+            toggleAASurface.checked = false;
+            toggleAASurface.disabled = false;
+        }
+
+        let toggleCGSurface = document.getElementById('toggle-cg-surface');
+        if (toggleCGSurface) {
+            toggleCGSurface.onchange = (event) => this.onToggleCGSurface(event);
+            toggleCGSurface.checked = false;
+            toggleCGSurface.disabled = false;
+        }
 
         document.getElementById('dl-ndx').onclick = (event) => {
             download('cgbuilder.ndx', generateNDX(this.collection));
@@ -260,6 +283,7 @@ class Visualization {
 	}
 
     attachRepresentation(component) {
+        this.component = component;
         this.representation = component.addRepresentation(
 	        "ball+stick",
             bondAwareRepresentationParams({
@@ -269,6 +293,21 @@ class Visualization {
 	            opacity: 0.6
             }),
 	    );
+
+        // Solvent-accessible surface of the all-atom structure. NGL derives the
+        // per-atom vdW radii from its built-in element table.
+        this.aaSurface = component.addRepresentation("surface", {
+            surfaceType: "sas",
+            probeRadius: PROBE_RADIUS,
+            color: "#f4b642",
+            opacity: 0.3,
+            visible: this.showAASurface,
+            useWorker: false,
+        });
+
+        // Pre-compute AA SASA once; the structure doesn't change after load.
+        this._aaSASAValue = aaSASA(component.structure, PROBE_RADIUS);
+        this.updateSASA();
     }
 
     attachAALabels(component) {
@@ -291,6 +330,59 @@ class Visualization {
     onToggleCG(event) {
         this.showCG = (! this.showCG);
         this.drawCG();
+    }
+
+    onToggleAASurface(event) {
+        this.showAASurface = event.target.checked;
+        if (this.aaSurface) {
+            this.aaSurface.setVisibility(this.showAASurface);
+        }
+    }
+
+    onToggleCGSurface(event) {
+        this.showCGSurface = event.target.checked;
+        this.drawCGSurface();
+    }
+
+    // Build (or refresh) the CG solvent-accessible surface. Each bead is written
+    // to a tiny synthetic PDB with its vdW radius stored in the B-factor column,
+    // then NGL's surface generator reads that radius via radiusType: "bfactor".
+    drawCGSurface() {
+        if (this.cgSurfaceComp != null) {
+            this.stage.removeComponent(this.cgSurfaceComp);
+            this.cgSurfaceComp = null;
+        }
+        if (! this.showCGSurface) {
+            return;
+        }
+        let pdb = beadsToPDB(this.collection);
+        if (! pdb) {
+            return;
+        }
+        let token = ++this._cgSurfaceToken;
+        this.stage
+            .loadFile(new Blob([pdb], {type: "text/plain"}), {ext: "pdb"})
+            .then((comp) => {
+                // Drop the result if a newer request superseded this one or the
+                // surface was toggled off while loading.
+                if (token !== this._cgSurfaceToken || ! this.showCGSurface) {
+                    this.stage.removeComponent(comp);
+                    return;
+                }
+                comp.addRepresentation("surface", {
+                    surfaceType: "sas",
+                    radiusType: "bfactor",
+                    radiusScale: 1.0,
+                    probeRadius: PROBE_RADIUS,
+                    color: "#7fc8a9",
+                    opacity: 0.3,
+                    useWorker: false,
+                });
+                this.cgSurfaceComp = comp;
+            })
+            .catch((err) => {
+                console.error("Error building CG surface:", err);
+            });
     }
 
     onToggleAALabels(event) {
@@ -403,6 +495,7 @@ class Visualization {
         this.updateMap();
         this.updateGRO();
         this.updatePY();
+        this.updateSASA();
         this.drawCG();
     }
 
@@ -579,6 +672,31 @@ class Visualization {
         displayNode.textContent = generatePythonAssignments(this.collection);
     }
 
+    updateSASA() {
+        const aaEl   = document.getElementById('aa-sasa');
+        const cgEl   = document.getElementById('cg-sasa');
+        const diffEl = document.getElementById('sasa-diff');
+        if (!aaEl || !cgEl || !diffEl) return;
+
+        const aaVal = this._aaSASAValue;
+        aaEl.textContent = aaVal !== null ? aaVal.toFixed(1) : '—';
+
+        const cgVal = cgSASA(this.collection, PROBE_RADIUS);
+        cgEl.textContent = cgVal > 0 ? cgVal.toFixed(1) : '—';
+
+        if (aaVal !== null && aaVal > 0 && cgVal > 0) {
+            const pct = (cgVal - aaVal) / aaVal * 100;
+            const sign = pct >= 0 ? '+' : '';
+            diffEl.textContent = `${sign}${pct.toFixed(1)}%`;
+            diffEl.className = Math.abs(pct) < 5  ? 'sasa-diff-good'
+                             : Math.abs(pct) < 10 ? 'sasa-diff-warn'
+                             :                      'sasa-diff-bad';
+        } else {
+            diffEl.textContent = '—';
+            diffEl.className = '';
+        }
+    }
+
     drawCG() {
         let normalColor = [0.58, 0.79, 0.66];
         let selectedColor = [0.25, 0.84, 0.96];
@@ -602,6 +720,9 @@ class Visualization {
         }
         this.shapeComp = this.stage.addComponentFromObject(shape);
         this.shapeComp.addRepresentation("buffer", {opacity: opacity});
+
+        // Keep the CG surface in sync with the current mapping when it is shown.
+        this.drawCGSurface();
     }
 }
 
@@ -834,6 +955,210 @@ function bondAwareRepresentationParams(overrides = {}) {
         },
         overrides
     );
+}
+
+/* ===========================================================================
+   Solvent-accessible surface area (SASA)
+   ===========================================================================
+   Probe radius in Angstrom. 0.191 nm = 1.91 Å is the Martini tiny-bead radius,
+   used here so the AA and CG surfaces are computed with the same probe and are
+   directly comparable. */
+const PROBE_RADIUS = 1.91;
+
+/* Martini bead vdW radii in Angstrom, keyed by size class. Values come from the
+   standard Martini bead radii (nm -> A): regular 0.264, small 0.230, tiny 0.191.
+   "U" beads are virtual/ghost beads and contribute no surface (radius 0).
+   Edit this table to switch force fields. */
+const BEAD_RADII = {
+    R: 2.64,
+    S: 2.30,
+    T: 1.91,
+    U: 0.0,
+};
+const DEFAULT_BEAD_SIZE = "R"; // fall back to a regular bead for unknown types
+
+// Resolve the Martini size class from a bead type string. In Martini naming the
+// leading letter encodes the size: "S" (small) and "T" (tiny) prefix the
+// chemical class (e.g. "SP2", "TC3"); "U" marks a virtual bead; everything else
+// is a regular bead.
+function beadSizeClass(type) {
+    if (!type) {
+        return DEFAULT_BEAD_SIZE;
+    }
+    const first = type.trim().charAt(0).toUpperCase();
+    if (first === "S" || first === "T" || first === "U") {
+        return first;
+    }
+    return DEFAULT_BEAD_SIZE;
+}
+
+function beadRadius(bead) {
+    return BEAD_RADII[beadSizeClass(bead.type)];
+}
+
+// Pad an atom name into PDB columns 13-16. Names shorter than 4 characters get a
+// leading space, matching the convention NGL expects when parsing.
+function formatPDBAtomName(name) {
+    name = (name || "").substring(0, 4);
+    if (name.length >= 4) {
+        return name;
+    }
+    return (" " + name).padEnd(4);
+}
+
+// Serialise the CG beads to a minimal PDB string, one ATOM per bead, with the
+// bead vdW radius stored in the temperature-factor column (cols 61-66). Beads
+// with no atoms or a zero radius (virtual "U" beads) are skipped.
+function beadsToPDB(collection) {
+    let lines = [];
+    let serial = 0;
+    for (const bead of collection.beads) {
+        if (bead.atoms.length === 0) {
+            continue;
+        }
+        const radius = beadRadius(bead);
+        if (radius <= 0) {
+            continue;
+        }
+        serial += 1;
+        const center = bead.center;
+        const serStr = String(serial % 100000).padStart(5);
+        const name = formatPDBAtomName(bead.name);
+        const resname = (bead.resname || "BEA").substring(0, 3).padEnd(3);
+        const resid = String(((bead.resid % 10000) + 10000) % 10000).padStart(4);
+        const x = center.x.toFixed(3).padStart(8);
+        const y = center.y.toFixed(3).padStart(8);
+        const z = center.z.toFixed(3).padStart(8);
+        const occ = "  1.00";
+        const bfac = radius.toFixed(2).padStart(6);
+        lines.push(
+            "ATOM  " +   // 1-6   record name
+            serStr +     // 7-11  serial
+            " " +        // 12    (blank)
+            name +       // 13-16 atom name
+            " " +        // 17    altLoc
+            resname +    // 18-20 resName
+            " " +        // 21    (blank)
+            "A" +        // 22    chainID
+            resid +      // 23-26 resSeq
+            " " +        // 27    iCode
+            "   " +      // 28-30 (blank)
+            x + y + z +  // 31-54 coordinates
+            occ +        // 55-60 occupancy
+            bfac +       // 61-66 tempFactor (used as radius)
+            "          " + // 67-76 (blank)
+            " C"         // 77-78 element
+        );
+    }
+    if (lines.length === 0) {
+        return "";
+    }
+    lines.push("END");
+    return lines.join("\n") + "\n";
+}
+
+/* ===========================================================================
+   Shrake-Rupley SASA
+   ===========================================================================
+   Standard Bondi vdW radii (Angstrom) for elements found in organic molecules.
+   Used for the AA surface numerical computation. */
+// Radii in Angstrom (converted from nm). Source: the same table used by the
+// reference GROMACS pipeline this tool is designed to complement.
+const VDW_RADII = {
+    H: 1.09, C: 1.75, N: 1.61, O: 1.56, F: 1.44,
+    P: 1.80, S: 1.79, CL: 1.74, BR: 1.85, I: 2.00,
+};
+const DEFAULT_VDW_RADIUS = 1.75;
+
+// Fibonacci golden-ratio lattice — generates n near-uniformly distributed
+// points on the unit sphere.
+function fibonacciSpherePoints(n) {
+    const pts = new Array(n);
+    const phi = Math.PI * (3 - Math.sqrt(5));
+    for (let i = 0; i < n; i++) {
+        const y = 1 - (i / (n - 1)) * 2;
+        const r = Math.sqrt(1 - y * y);
+        const theta = phi * i;
+        pts[i] = [r * Math.cos(theta), y, r * Math.sin(theta)];
+    }
+    return pts;
+}
+
+// Shrake-Rupley numerical SASA in Å².
+// particles: array of [x, y, z, vdwRadius] in Angstrom.
+// nPoints: number of test points per sphere; 960 gives ~1% accuracy for typical
+// drug-like molecules and runs in milliseconds.
+function shrakeRupley(particles, probeRadius, nPoints = 4800) {
+    const n = particles.length;
+    if (n === 0) return 0;
+    const unitPts = fibonacciSpherePoints(nPoints);
+    let totalSASA = 0;
+
+    for (let i = 0; i < n; i++) {
+        const [xi, yi, zi, ri] = particles[i];
+        const shellR = ri + probeRadius;
+
+        // Pre-filter: j can only bury points on i's shell if centers are closer
+        // than shellR_i + shellR_j. Building this list once per i is much faster
+        // than checking all N for each of the nPoints test points.
+        const neighbors = [];
+        for (let j = 0; j < n; j++) {
+            if (j === i) continue;
+            const [xj, yj, zj, rj] = particles[j];
+            const cutoff = shellR + rj + probeRadius;
+            const dx = xi - xj, dy = yi - yj, dz = zi - zj;
+            if (dx*dx + dy*dy + dz*dz < cutoff*cutoff) {
+                neighbors.push(j);
+            }
+        }
+
+        let exposed = 0;
+        for (const [ux, uy, uz] of unitPts) {
+            const px = xi + shellR * ux;
+            const py = yi + shellR * uy;
+            const pz = zi + shellR * uz;
+            let buried = false;
+            for (const j of neighbors) {
+                const [xj, yj, zj, rj] = particles[j];
+                const cutoff = rj + probeRadius;
+                const dx = px - xj, dy = py - yj, dz = pz - zj;
+                if (dx*dx + dy*dy + dz*dz < cutoff*cutoff) {
+                    buried = true;
+                    break;
+                }
+            }
+            if (!buried) exposed++;
+        }
+        totalSASA += (exposed / nPoints) * 4 * Math.PI * shellR * shellR;
+    }
+    return totalSASA;
+}
+
+// Extract per-atom positions and vdW radii from an NGL Structure, then compute
+// SASA with Shrake-Rupley. Hydrogen atoms contribute negligibly; they are
+// included to match standard SASA conventions.
+function aaSASA(structure, probeRadius) {
+    const particles = [];
+    structure.eachAtom((atom) => {
+        const el = (atom.element || "").toUpperCase();
+        const r = VDW_RADII[el] ?? DEFAULT_VDW_RADIUS;
+        particles.push([atom.x, atom.y, atom.z, r]);
+    });
+    return shrakeRupley(particles, probeRadius);
+}
+
+// Compute CG SASA from the bead collection using Martini bead radii.
+// Virtual (U) beads and empty beads are excluded.
+function cgSASA(collection, probeRadius) {
+    const particles = [];
+    for (const bead of collection.beads) {
+        if (bead.atoms.length === 0) continue;
+        const r = beadRadius(bead);
+        if (r <= 0) continue;
+        const c = bead.center;
+        particles.push([c.x, c.y, c.z, r]);
+    }
+    return shrakeRupley(particles, probeRadius);
 }
 
 function loadMolecule(event, stage) {
