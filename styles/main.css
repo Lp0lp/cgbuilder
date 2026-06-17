@@ -341,6 +341,29 @@ button.copied {
     opacity: 0.6;
 }
 
+/* Bead type suggestion chip */
+.type-field-wrap {
+    min-height: 18px;
+}
+
+.bead-type-chip {
+    margin-top: 3px;
+    font-size: 11px;
+    padding: 2px 7px;
+    background: #ebf4ff;
+    border: 1px solid #90cdf4;
+    border-radius: 4px;
+    color: #2b6cb0;
+    cursor: pointer;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.bead-type-chip:hover {
+    background: #bee3f8;
+    border-color: #63b3ed;
+}
+
 /* SASA panel */
 #sasa-panel {
     display: flex;
