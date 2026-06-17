@@ -635,7 +635,7 @@ class Visualization {
 
         if (bead === this.currentBead) {
             item.classList.add("selected-bead");
-            item.scrollIntoView(false);
+            item.scrollIntoView({ block: 'nearest' });
         }
     }
 
