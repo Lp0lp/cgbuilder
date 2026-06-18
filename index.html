@@ -58,12 +58,6 @@
 
         <div class="controls-sep"></div>
 
-        <button class="new-bead" disabled>New bead</button>
-        <button id="clear-beads-btn" disabled>Clear beads</button>
-        <button id="predict-types" disabled>Predict bead types</button>
-
-        <div class="controls-sep"></div>
-
         <div id="viewer-panel">
             <div class="panel-title">Viewer</div>
             <div class="viewer-row">
@@ -117,6 +111,22 @@
                 <span id="sasa-diff">—</span>
             </div>
         </div>
+
+        <div id="mapping-panel">
+            <div class="panel-title">Mapping</div>
+            <div class="sasa-row">
+                <span class="sasa-label">Heavy atoms</span>
+                <span id="map-heavy">—</span>
+            </div>
+            <div class="sasa-row">
+                <span class="sasa-label">Beads</span>
+                <span id="map-beads">—</span>
+            </div>
+            <div class="sasa-row">
+                <span class="sasa-label">Mismatch</span>
+                <span id="map-mismatch">—</span>
+            </div>
+        </div>
     </div>
 
     <div id="structview">
@@ -124,6 +134,11 @@
     </div>
 
     <div id="beadlist">
+        <div id="bead-actions">
+            <button class="new-bead btn-success" disabled>New bead</button>
+            <button id="clear-beads-btn" class="btn-danger" disabled>Clear beads</button>
+            <button id="predict-types" disabled>Predict bead types</button>
+        </div>
         <ul id="bead-list"></ul>
     </div>
 

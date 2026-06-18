@@ -46,6 +46,7 @@ export class Visualization {
         this.showCGSurface = false;
         this._cgSurfaceToken = 0;     // guards against stale async surface loads
         this._aaSASAValue = null;     // cached; recomputed only on molecule load
+        this.nHeavyAtoms = 0;
 
         let toggleCGLabels = document.getElementById('toggle-cg-labels');
         toggleCGLabels.onchange = (e) => { this.showCGLabels = e.target.checked; this.drawCG(); };
@@ -146,6 +147,12 @@ export class Visualization {
         document.getElementById('atom-name-warning').hidden = !hasDupes;
     }
 
+    countHeavyAtoms(structure) {
+        let count = 0;
+        structure.eachAtom(ap => { if (ap.element !== 'H') count++; });
+        this.nHeavyAtoms = count;
+    }
+
     attachAALabels(component) {
         this.aa_labels = component.addRepresentation("label", {
             labelType: "text",
@@ -195,76 +202,7 @@ export class Visualization {
                 this.component && this.component.structure);
 
             for (const bead of this.collection.beads) {
-                if (bead.atoms.length === 0) continue;
-
-                const smiles = fragmentToSmiles(bead.atoms, { aromaticAtoms, bondOrders });
-                if (!smiles) continue;
-
-                const mol = RDKit.get_mol(smiles);
-                if (!mol) {
-                    console.warn(`Bead "${bead.name}": invalid SMILES "${smiles}" — skipping`);
-                    continue;
-                }
-
-                const canonSmiles = mol.get_smiles();
-                const desc = JSON.parse(mol.get_descriptors());
-                mol.delete();
-
-                const charge     = bead.atoms.reduce((s, a) => s + (a.formalCharge ?? 0), 0)
-                                   + (bead.charge || 0);
-                const hasHalogen = bead.atoms.some(a =>
-                    ['F','CL','BR','I'].includes((a.element || '').toUpperCase()));
-                const inRing     = bead.atoms.some(a => aromaticAtoms.has(a.index));
-                const heavyCount = bead.atoms.filter(a =>
-                    (a.element || 'C').toUpperCase() !== 'H').length;
-                const hDonors    = beadDonorCount(bead, hasExplicitH);
-
-                // Table-first lookup. The AutoMartini table uses open-chain
-                // aromatic SMILES ("cc", "cn", "ncs"…) for partial-ring fragments
-                // — invalid for RDKit but kept verbatim in canonTable. For aromatic
-                // fragments, the serialisation depends on the DFS start atom (a
-                // C–N pair is "cn" from C but "nc" from N), and the table only
-                // stores one direction, so we enumerate the aromatic-notation
-                // SMILES from every start atom and try each. The RDKit canonical
-                // (Kekulé) form is the final fallback so full rings (c1ccccc1) and
-                // non-aromatic entries still match. Real double bonds (inRing=false)
-                // skip the aromatic lookup and fall through to Crippen → TC4.
-                let lookupKey = canonSmiles;
-                let tableVal;
-                if (inRing) {
-                    const keys = new Set();
-                    for (const a of bead.atoms) {
-                        if (!aromaticAtoms.has(a.index)) continue;
-                        const k = fragmentToSmiles(bead.atoms, {
-                            aromaticNotation: true, aromaticAtoms, bondOrders,
-                            startIndex: a.index });
-                        if (k) keys.add(k);
-                    }
-                    for (const k of keys) {
-                        if (canonTable[k] !== undefined) { lookupKey = k; tableVal = canonTable[k]; break; }
-                    }
-                    if (tableVal === undefined && keys.size) lookupKey = [...keys][0];
-                }
-                if (tableVal === undefined) tableVal = canonTable[canonSmiles];
-
-                let deltaF, source;
-                if (tableVal !== undefined) {
-                    deltaF = tableVal;
-                    source = 'table';
-                } else {
-                    const logP = desc.CrippenClogP ?? 0;
-                    deltaF = 0.008314 * 300 * Math.LN10 * logP;
-                    source = 'crippen';
-                }
-
-                const hAcceptors = desc.NumHBA ?? 0;
-                console.log(
-                    `Bead "${bead.name}": ${smiles} → key=${lookupKey} | `
-                    + `δf=${deltaF.toFixed(1)} (${source}) `
-                    + `arom=${inRing} HBD=${hDonors} HBA=${hAcceptors}`);
-
-                bead.suggestedType = determineBeadType(
-                    { deltaF, charge, hDonors, hAcceptors, hasHalogen, inRing, heavyCount });
+                this._predictOneBead(bead, RDKit, canonTable, hasExplicitH, aromaticAtoms, bondOrders);
             }
 
             this.updateSelection();
@@ -278,6 +216,97 @@ export class Visualization {
             return;
         }
 
+        btn.textContent = originalText;
+        btn.disabled = false;
+    }
+
+    _predictOneBead(bead, RDKit, canonTable, hasExplicitH, aromaticAtoms, bondOrders) {
+        if (bead.atoms.length === 0) return;
+
+        const smiles = fragmentToSmiles(bead.atoms, { aromaticAtoms, bondOrders });
+        if (!smiles) return;
+
+        const mol = RDKit.get_mol(smiles);
+        if (!mol) {
+            console.warn(`Bead "${bead.name}": invalid SMILES "${smiles}" — skipping`);
+            return;
+        }
+
+        const canonSmiles = mol.get_smiles();
+        const desc = JSON.parse(mol.get_descriptors());
+        mol.delete();
+
+        const charge     = bead.atoms.reduce((s, a) => s + (a.formalCharge ?? 0), 0)
+                           + (bead.charge || 0);
+        const hasHalogen = bead.atoms.some(a =>
+            ['F','CL','BR','I'].includes((a.element || '').toUpperCase()));
+        const inRing     = bead.atoms.some(a => aromaticAtoms.has(a.index));
+        const heavyCount = bead.atoms.filter(a =>
+            (a.element || 'C').toUpperCase() !== 'H').length;
+        const hDonors    = beadDonorCount(bead, hasExplicitH);
+
+        // Table-first lookup. The AutoMartini table uses open-chain
+        // aromatic SMILES ("cc", "cn", "ncs"…) for partial-ring fragments
+        // — invalid for RDKit but kept verbatim in canonTable. For aromatic
+        // fragments, the serialisation depends on the DFS start atom (a
+        // C–N pair is "cn" from C but "nc" from N), and the table only
+        // stores one direction, so we enumerate the aromatic-notation
+        // SMILES from every start atom and try each. The RDKit canonical
+        // (Kekulé) form is the final fallback so full rings (c1ccccc1) and
+        // non-aromatic entries still match. Real double bonds (inRing=false)
+        // skip the aromatic lookup and fall through to Crippen → TC4.
+        let lookupKey = canonSmiles;
+        let tableVal;
+        if (inRing) {
+            const keys = new Set();
+            for (const a of bead.atoms) {
+                if (!aromaticAtoms.has(a.index)) continue;
+                const k = fragmentToSmiles(bead.atoms, {
+                    aromaticNotation: true, aromaticAtoms, bondOrders,
+                    startIndex: a.index });
+                if (k) keys.add(k);
+            }
+            for (const k of keys) {
+                if (canonTable[k] !== undefined) { lookupKey = k; tableVal = canonTable[k]; break; }
+            }
+            if (tableVal === undefined && keys.size) lookupKey = [...keys][0];
+        }
+        if (tableVal === undefined) tableVal = canonTable[canonSmiles];
+
+        let deltaF, source;
+        if (tableVal !== undefined) {
+            deltaF = tableVal;
+            source = 'table';
+        } else {
+            const logP = desc.CrippenClogP ?? 0;
+            deltaF = 0.008314 * 300 * Math.LN10 * logP;
+            source = 'crippen';
+        }
+
+        const hAcceptors = desc.NumHBA ?? 0;
+        console.log(
+            `Bead "${bead.name}": ${smiles} → key=${lookupKey} | `
+            + `δf=${deltaF.toFixed(1)} (${source}) `
+            + `arom=${inRing} HBD=${hDonors} HBA=${hAcceptors}`);
+
+        bead.suggestedType = determineBeadType(
+            { deltaF, charge, hDonors, hAcceptors, hasHalogen, inRing, heavyCount });
+    }
+
+    async onPredictBeadType(bead, btn) {
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '…';
+        try {
+            const RDKit = await loadRDKit();
+            const canonTable = buildCanonTable(RDKit);
+            const hasExplicitH = structureHasHydrogens(this.component && this.component.structure);
+            const { aromaticAtoms, bondOrders } = perceiveChemistry(this.component && this.component.structure);
+            this._predictOneBead(bead, RDKit, canonTable, hasExplicitH, aromaticAtoms, bondOrders);
+            this.updateSelection();
+        } catch (err) {
+            console.error('Per-bead prediction failed:', err);
+        }
         btn.textContent = originalText;
         btn.disabled = false;
     }
@@ -406,7 +435,65 @@ export class Visualization {
         this.updateGRO();
         this.updatePY();
         this.updateSASA();
+        this.updateMappingStats();
         this.drawCG();
+    }
+
+    updateMappingStats() {
+        const heavyEl    = document.getElementById('map-heavy');
+        const beadsEl    = document.getElementById('map-beads');
+        const mismatchEl = document.getElementById('map-mismatch');
+        if (!heavyEl) return;
+
+        const reset = () => {
+            [heavyEl, beadsEl, mismatchEl].forEach(el => { el.textContent = '—'; el.className = ''; });
+        };
+
+        if (!this.nHeavyAtoms) { reset(); return; }
+
+        const nHeavy = this.nHeavyAtoms;
+        const beads  = this.collection.beads;
+        const nBeads = beads.length;
+        heavyEl.textContent = nHeavy;
+
+        const allTyped = nBeads > 0 && beads.every(b => b.type && b.type !== 'TYPe');
+
+        if (!allTyped) {
+            beadsEl.textContent = `${nBeads}`;
+            mismatchEl.textContent = '⚠ Assign bead types';
+            mismatchEl.className = 'sasa-diff-warn';
+            return;
+        }
+
+        const counts = { R: 0, S: 0, T: 0, U: 0 };
+        let expectedHeavy = 0;
+        for (const bead of beads) {
+            const t = (bead.type || '').toUpperCase();
+            if      (t[0] === 'T') { counts.T++; expectedHeavy += 2; }
+            else if (t[0] === 'S') { counts.S++; expectedHeavy += 3; }
+            else if (t[0] === 'U') { counts.U++;                     }
+            else                   { counts.R++; expectedHeavy += 4; }
+        }
+        const parts = [];
+        if (counts.R) parts.push(`${counts.R}R`);
+        if (counts.S) parts.push(`${counts.S}S`);
+        if (counts.T) parts.push(`${counts.T}T`);
+        if (counts.U) parts.push(`${counts.U}U`);
+        beadsEl.textContent = `${nBeads} (${parts.join(' ')})`;
+
+        const diff      = nHeavy - expectedHeavy;
+        const tolerance = Math.max(1, Math.round(nHeavy / 10));
+        const absDiff   = Math.abs(diff);
+        const sign      = diff > 0 ? '+' : '';
+
+        let label, cls;
+        if      (absDiff === 0)        { label = 'OK';           cls = 'sasa-diff-good'; }
+        else if (absDiff <= tolerance) { label = 'Acceptable';   cls = 'sasa-diff-warn'; }
+        else if (diff > 0)             { label = 'Under-mapped'; cls = 'sasa-diff-bad';  }
+        else                           { label = 'Over-mapped';  cls = 'sasa-diff-bad';  }
+
+        mismatchEl.textContent = `${sign}${diff}  ${label}`;
+        mismatchEl.className = cls;
     }
 
     updateSelection() {
@@ -494,14 +581,26 @@ export class Visualization {
         chargeNode.addEventListener("mousedown", e => e.stopPropagation());
         addLabeledField("Charge", chargeNode);
 
-        // DELETE BUTTON
+        // DELETE + PREDICT button column
+        const btnCol = document.createElement("div");
+        btnCol.classList.add("bead-btn-col");
+
         let removeNode = document.createElement("button");
         removeNode.textContent = "Delete";
-        removeNode.classList.add("delete-bead");
+        removeNode.classList.add("delete-bead", "btn-danger");
         removeNode.onclick = (event) => { event.stopPropagation(); this.onBeadRemove(event); };
 
+        let predictNode = document.createElement("button");
+        predictNode.textContent = "Predict";
+        predictNode.classList.add("predict-bead");
+        predictNode.addEventListener("mousedown", e => e.stopPropagation());
+        predictNode.onclick = (e) => { e.stopPropagation(); this.onPredictBeadType(bead, predictNode); };
+
+        btnCol.appendChild(removeNode);
+        btnCol.appendChild(predictNode);
+
         headerRow.appendChild(fieldsNode);
-        headerRow.appendChild(removeNode);
+        headerRow.appendChild(btnCol);
         item.appendChild(headerRow);
 
         // ATOM LIST — collapsible

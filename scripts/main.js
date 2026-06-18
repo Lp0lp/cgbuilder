@@ -24,6 +24,7 @@ function loadMoleculeFromFile(file, stage) {
             vizu.attachAALabels(component);
             vizu.attachRepresentation(component);
             vizu.checkAtomNameUniqueness(component.structure);
+            vizu.countHeavyAtoms(component.structure);
             vizu.updateSelection();
         })
         .catch((err) => {

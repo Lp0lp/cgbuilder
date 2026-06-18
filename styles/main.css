@@ -310,7 +310,6 @@ body {
     grid-column: 2;
     grid-row: 2;
 
-    padding: 12px;
     height: 70vh;
     box-sizing: border-box;
 
@@ -322,9 +321,22 @@ body {
     min-height: 0;
 }
 
+#bead-actions {
+    display: flex;
+    gap: 6px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+#bead-actions button {
+    font-size: 12px;
+    padding: 4px 8px;
+}
+
 #bead-list {
     list-style: none;
-    padding-left: 0;
+    padding: 8px 12px;
     margin: 0;
 
     flex: 1 1 auto;
@@ -603,11 +615,20 @@ input {
     border-radius: 4px;
 }
 
-.delete-bead {
+.bead-btn-col {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-self: flex-start;
+    flex-shrink: 0;
+}
+
+.delete-bead,
+.predict-bead {
     font-size: 11px;
     padding: 4px 8px;
     white-space: nowrap;
-    flex-shrink: 0;
+    width: 100%;
 }
 
 button.copied {
@@ -626,7 +647,6 @@ button.copied {
     gap: 6px;
     cursor: pointer;
     user-select: none;
-    font-size: 13px;
     font-weight: 500;
 }
 
@@ -706,6 +726,11 @@ button.copied {
    VIEWER PANEL
 ================================ */
 
+#viewer-panel button,
+#viewer-panel .toggle-switch {
+    font-size: 12px;
+}
+
 #viewer-panel {
     display: flex;
     flex-direction: column;
@@ -728,7 +753,7 @@ button.copied {
    SASA PANEL
 ================================ */
 
-#sasa-panel {
+#sasa-panel, #mapping-panel {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
@@ -750,9 +775,6 @@ button.copied {
     margin-bottom: 2px;
 }
 
-.sasa-toggle {
-    font-size: 12px;
-}
 
 .sasa-divider {
     border: none;
@@ -892,6 +914,21 @@ button.copied {
 .btn-danger:hover {
     filter: brightness(1.1);
     background: #dc2626;
+}
+
+.btn-success {
+    background: #16a34a;
+    color: white;
+    border-color: #16a34a;
+}
+
+.btn-success:hover {
+    filter: brightness(1.1);
+    background: #16a34a;
+}
+
+.btn-success:disabled {
+    opacity: 0.5;
 }
 
 .btn-primary {
