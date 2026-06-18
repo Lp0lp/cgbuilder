@@ -48,13 +48,18 @@
 <!-- ===== APP PAGE ===== -->
 <div id="page-app" class="page active">
     <div id="controls">
-        <form>
-            <label for="files" class="btn">Load molecule</label>
-            <input id="mol-select" type="file" name="files" accept=".pdb,.cif,.ent,.gz,.gro,.sdf,.sd,.mol2,.mol"/>
-        </form>
-
-        <button id="load-example-btn">Load example</button>
-        <button id="load-mapping-btn" disabled>Load mapping</button>
+        <div id="load-panel">
+            <div class="panel-title">Load molecule</div>
+            <div class="load-row">
+                <form>
+                    <input id="mol-select" type="file" name="files" accept=".pdb,.cif,.ent,.gz,.gro,.sdf,.sd,.mol2,.mol"/>
+                </form>
+                <div class="load-secondary">
+                    <button id="load-mapping-btn" disabled>Load mapping</button>
+                    <button id="load-example-btn">Load example</button>
+                </div>
+            </div>
+        </div>
 
         <div class="controls-sep"></div>
 

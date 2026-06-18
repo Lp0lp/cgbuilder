@@ -285,6 +285,38 @@ body {
     padding: 5px 10px;
 }
 
+#load-panel {
+    display: flex;
+    flex-direction: column;
+    padding: 6px 10px;
+    background: var(--bg-controls);
+    border: 1px solid var(--border-input);
+    border-radius: 6px;
+    font-size: 12px;
+    align-self: stretch;
+    gap: 4px;
+}
+
+.load-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+#mol-select { width: 210px; font-size: 12px; }
+
+.load-secondary {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+#load-panel button {
+    font-size: 12px;
+    padding: 3px 10px;
+    white-space: nowrap;
+}
+
 /* ================================
    VIEWER
 ================================ */
