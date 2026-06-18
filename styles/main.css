@@ -1,43 +1,286 @@
 /* ================================
+   THEME VARIABLES
+================================ */
+
+:root {
+    color-scheme: light;
+
+    --bg-base:         #f5f6f8;
+    --bg-surface:      #ffffff;
+    --bg-surface-alt:  #fafafa;
+    --bg-hover:        #f1f3f6;
+    --bg-tab:          #eef0f4;
+    --bg-controls:     #eef0f4;
+    --bg-ref:          #f8f9fb;
+
+    --text-primary:    #222222;
+    --text-secondary:  #666666;
+    --text-muted:      #888888;
+    --text-heading:    #1e293b;
+
+    --border:          #d0d4da;
+    --border-light:    #e2e8f0;
+    --border-input:    #c6cbd2;
+
+    --navbar-bg:       #1e293b;
+
+    --color-primary:        #2b6cb0;
+    --chip-bg:              #ebf4ff;
+    --chip-border:          #90cdf4;
+    --chip-text:            #2b6cb0;
+    --chip-hover-bg:        #bee3f8;
+    --chip-hover-border:    #63b3ed;
+
+    --bead-selected-bg:     #41d6f4;
+    --bead-selected-border: #2bbbd9;
+
+    --toggle-off: #c6cbd2;
+    --toggle-on:  #2b6cb0;
+
+    --color-success: #2bb673;
+    --sasa-good:     #2bb673;
+    --sasa-warn:     #d97706;
+    --sasa-bad:      #dc2626;
+}
+
+[data-theme="dark"] {
+    color-scheme: dark;
+
+    --bg-base:         #0d1117;
+    --bg-surface:      #161b22;
+    --bg-surface-alt:  #1c2128;
+    --bg-hover:        #21262d;
+    --bg-tab:          #21262d;
+    --bg-controls:     #161b22;
+    --bg-ref:          #161b22;
+
+    --text-primary:    #c9d1d9;
+    --text-secondary:  #8b949e;
+    --text-muted:      #6e7681;
+    --text-heading:    #e6edf3;
+
+    --border:          #30363d;
+    --border-light:    #21262d;
+    --border-input:    #30363d;
+
+    --navbar-bg:       #010409;
+
+    --color-primary:        #58a6ff;
+    --chip-bg:              #1f3358;
+    --chip-border:          #1f6feb;
+    --chip-text:            #58a6ff;
+    --chip-hover-bg:        #1d4086;
+    --chip-hover-border:    #388bfd;
+
+    --bead-selected-bg:     #1f6feb;
+    --bead-selected-border: #388bfd;
+
+    --toggle-off: #30363d;
+    --toggle-on:  #1f6feb;
+
+    --color-success: #3fb950;
+    --sasa-good:     #3fb950;
+    --sasa-warn:     #d29922;
+    --sasa-bad:      #f85149;
+}
+
+/* ================================
    GLOBAL TYPOGRAPHY
 ================================ */
 
 body {
-    display: grid;
-    grid-template-columns: 60vw auto;
-    grid-template-rows: auto 70vh auto;
-    column-gap: 16px;
-    row-gap: 14px;
-    align-items: start;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
     margin: 0;
     padding: 0;
 
     font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont,
                  "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     font-weight: 400;
-    color: #222;
-    background: #f5f6f8;
+    color: var(--text-primary);
+    background: var(--bg-base);
 }
 
 /* ================================
-   TOP CONTROLS (FULL WIDTH)
+   NAVBAR
+================================ */
+
+#navbar {
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    background: var(--navbar-bg);
+    color: white;
+    height: 46px;
+    flex-shrink: 0;
+    gap: 8px;
+}
+
+.navbar-brand {
+    font-size: 15px;
+    font-weight: 700;
+    color: white;
+    white-space: nowrap;
+    padding-right: 8px;
+    letter-spacing: -0.01em;
+}
+
+.navbar-tabs {
+    display: flex;
+    gap: 2px;
+    height: 100%;
+    align-items: stretch;
+}
+
+.navbar-tab {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    color: rgba(255,255,255,0.6);
+    font-size: 13px;
+    font-weight: 500;
+    padding: 0 14px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+    white-space: nowrap;
+    font-family: inherit;
+}
+
+.navbar-tab:hover {
+    color: white;
+    background: rgba(255,255,255,0.08);
+}
+
+.navbar-tab.active {
+    color: white;
+    border-bottom-color: #60a5fa;
+    font-weight: 600;
+}
+
+.navbar-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.navbar-icon-link {
+    display: flex;
+    align-items: center;
+    color: rgba(255,255,255,0.65);
+    text-decoration: none;
+    padding: 5px 7px;
+    border-radius: 6px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-family: inherit;
+    transition: color 0.15s, background 0.15s;
+}
+
+.navbar-icon-link:hover {
+    color: white;
+    background: rgba(255,255,255,0.1);
+}
+
+/* Moon shown in light mode, sun in dark mode */
+.theme-toggle .icon-sun  { display: none; }
+.theme-toggle .icon-moon { display: block; }
+
+[data-theme="dark"] .theme-toggle .icon-sun  { display: block; }
+[data-theme="dark"] .theme-toggle .icon-moon { display: none; }
+
+/* ================================
+   PAGE LAYOUT
+================================ */
+
+.page {
+    display: none;
+}
+
+.page.active {
+    display: block;
+}
+
+#page-app {
+    display: none;
+}
+
+#page-app.active {
+    display: grid;
+    grid-template-columns: 60vw auto;
+    grid-template-rows: auto 70vh auto;
+    column-gap: 16px;
+    row-gap: 14px;
+    align-items: start;
+}
+
+/* ================================
+   DOC PAGES
+================================ */
+
+.doc-page {
+    padding: 48px 24px 64px;
+    box-sizing: border-box;
+}
+
+.doc-content {
+    max-width: 760px;
+    margin: 0 auto;
+    line-height: 1.65;
+}
+
+.doc-content h1 {
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0 0 24px;
+    color: var(--text-heading);
+    letter-spacing: -0.02em;
+}
+
+.doc-content h2 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 32px 0 10px;
+    color: var(--text-heading);
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+}
+
+.doc-content ol,
+.doc-content ul:not(.ref-list) {
+    margin: 0 0 16px 20px;
+    padding: 0;
+}
+
+.doc-content li {
+    margin: 8px 0;
+}
+
+.doc-content a,
+.info-footnote a {
+    color: var(--color-primary);
+    text-decoration: none;
+}
+
+.doc-content a:hover,
+.info-footnote a:hover {
+    text-decoration: underline;
+}
+
+/* ================================
+   TOP CONTROLS (APP PAGE)
 ================================ */
 
 #controls {
-	display: flex;
+    display: flex;
     align-items: center;
     gap: 12px;
     flex-wrap: wrap;
     grid-column: 1 / 3;
-	padding: 5px 10px;
-}
-
-/* Instruction box */
-#instructions.info-box {
-    width: 100%;
-    display: block;
-    box-sizing: border-box;
-    margin-bottom: 14px;
+    padding: 5px 10px;
 }
 
 /* ================================
@@ -71,10 +314,10 @@ body {
 
     display: flex;
     flex-direction: column;
-    background: #ffffff;
+    background: var(--bg-surface);
     border-radius: 8px;
 
-    min-height: 0;      
+    min-height: 0;
 }
 
 #bead-list {
@@ -96,25 +339,27 @@ body {
 .bead-view {
     margin: 0.6em 0;
     padding: 0.7em;
-    border: 1px solid #d0d4da;
+    border: 1px solid var(--border);
     border-radius: 6px;
-    background: #fafafa;
+    background: var(--bg-surface-alt);
     box-sizing: border-box;
     transition: background 0.2s ease;
-	font-size: 14px;   /* was inheriting ~16px */
+    font-size: 14px;
 }
-/* Make labels smaller and tighter */
+
 .field-label {
     font-size: 11px;
+    color: var(--text-secondary);
     margin-bottom: 2px;
 }
+
 .bead-view:hover {
-    background: #f1f3f6;
+    background: var(--bg-hover);
 }
 
 .selected-bead {
-    background-color: #41d6f4;
-    border-color: #2bbbd9;
+    background-color: var(--bead-selected-bg);
+    border-color: var(--bead-selected-border);
 }
 
 .bead-header {
@@ -124,109 +369,158 @@ body {
     gap: 12px;
 }
 
-/* Name / Type / Charge on one row */
-.bead-fields{
-  display: grid !important;
-  grid-template-columns: 2fr 1fr 1fr;  /* Name wider */
-  gap: 10px;
-  flex: 1;
-  /* align-items: end; */
-  /* margin: 8px 0 10px 0; */
+.bead-fields {
+    display: grid !important;
+    grid-template-columns: 2fr 1fr 1fr;
+    gap: 10px;
+    flex: 1;
 }
 
-/* Prevent field wrappers from forcing full width */
-.bead-fields .field{
-  min-width: 0; /* allows inputs to shrink in grid */
+.bead-fields .field {
+    min-width: 0;
 }
 
-.bead-fields input{
-  width: 100%;
-  box-sizing: border-box;
+.bead-fields input {
+    width: 100%;
+    box-sizing: border-box;
 }
+
 /* ================================
-   FILE OUTPUTS
+   FILE OUTPUTS + TABS
 ================================ */
 
 #file-outputs {
     grid-column: 1 / 3;
     grid-row: 3;
-    padding: 14px 16px;
+    padding: 0 16px 14px;
     box-sizing: border-box;
 }
 
-#file-outputs pre {
-    border: 1px solid #d0d4da;
-    padding: 1em;
-    margin: 0.6em 0 1.2em 0;
-    background: #ffffff;
-    border-radius: 6px;
-    overflow-x: auto;
-	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-    font-size: 13px; 
+.tab-bar {
+    display: flex;
+    gap: 2px;
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 10px;
+    align-items: flex-end;
 }
 
-.output-header {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-bottom: 6px;
+.tab-btn {
+    padding: 5px 16px;
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-radius: 4px 4px 0 0;
+    background: var(--bg-tab);
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    position: relative;
+    bottom: -2px;
+    transition: background 0.15s, color 0.15s;
+}
+
+.tab-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.tab-btn.active {
+    background: var(--bg-surface);
+    border-color: var(--border);
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.tab-panel {
+    display: none;
+}
+
+.tab-panel.active {
+    display: block;
+}
+
+#file-outputs pre {
+    border: 1px solid var(--border);
+    padding: 1em;
+    margin: 0.6em 0 0;
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    border-radius: 6px;
+    overflow-x: auto;
+    max-height: 180px;
+    overflow-y: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 13px;
 }
 
 /* ================================
-   INFO BOX STYLE
+   CONTROLS SEPARATORS
+================================ */
+
+.controls-sep {
+    width: 1px;
+    height: 26px;
+    background: var(--border);
+    align-self: center;
+    flex-shrink: 0;
+}
+
+/* ================================
+   COLLAPSIBLE ATOM LIST
+================================ */
+
+.atom-list-details {
+    margin-top: 4px;
+}
+
+.atom-list-summary {
+    cursor: pointer;
+    font-size: 11px;
+    color: var(--text-muted);
+    list-style: none;
+    padding: 1px 0;
+    user-select: none;
+}
+
+.atom-list-summary::-webkit-details-marker { display: none; }
+
+.atom-list-summary::before {
+    content: '▸ ';
+    font-size: 10px;
+}
+
+details[open] .atom-list-summary::before {
+    content: '▾ ';
+}
+
+.output-header {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+/* ================================
+   INFO BOX + FOOTNOTE
 ================================ */
 
 .info-box {
     padding: 12px 14px;
-    border: 1px solid #d0d4da;
+    border: 1px solid var(--border);
     border-radius: 8px;
-    background: #ffffff;
+    background: var(--bg-surface);
     font-size: 0.92em;
     line-height: 1.35em;
     box-sizing: border-box;
 }
 
-.info-box strong {
-    font-weight: 600;
-}
-
-.info-box ul {
-    margin: 8px 0 0 18px;
-    padding: 0;
-}
-
-.info-box li {
-    margin: 4px 0;
-}
 .info-footnote {
     font-size: 12px;
-    color: #666;
+    color: var(--text-secondary);
     margin-top: 6px;
 }
-.info-footnote a {
-    font-size: 12px;
-    color: #2b6cb0;
-    text-decoration: none;
-}
 
-.info-footnote a:hover {
-    text-decoration: underline;
-}
-
-.info-credit {
-    font-size: 8px;
-    color: #666;
-    margin-top: 8px;
-}
-
-.info-credit a {
-    color: #2b6cb0;
-    text-decoration: none;
-}
-
-.info-credit a:hover {
-    text-decoration: underline;
-}
 /* ================================
    BUTTONS + INPUTS
 ================================ */
@@ -236,18 +530,19 @@ button {
     font-weight: 500;
     padding: 6px 10px;
     border-radius: 6px;
-    border: 1px solid #c6cbd2;
-    background: #ffffff;
+    border: 1px solid var(--border-input);
+    background: var(--bg-surface);
+    color: var(--text-primary);
     cursor: pointer;
     transition: background 0.2s ease, box-shadow 0.2s ease;
 }
 
 button:hover {
-    background: #f1f3f6;
+    background: var(--bg-hover);
 }
 
 button:disabled {
-    opacity: 0.6;
+    opacity: 0.5;
     cursor: default;
 }
 
@@ -255,36 +550,40 @@ input {
     font-family: inherit;
     padding: 4px 6px;
     border-radius: 4px;
-    border: 1px solid #c6cbd2;
+    border: 1px solid var(--border-input);
+    background: var(--bg-surface);
+    color: var(--text-primary);
 }
 
-/* Scrollbar (subtle modern look) */
+/* Scrollbar */
 #bead-list::-webkit-scrollbar {
     width: 8px;
 }
 
 #bead-list::-webkit-scrollbar-thumb {
-    background: #c6cbd2;
+    background: var(--border-input);
     border-radius: 4px;
 }
 
 .delete-bead {
-  margin-bottom: 3px;
-  font-size: 11px;
-  padding: 4px 8px;
-  height: 34px;
-  white-space: nowrap;
-  align-self: flex-end;
+    margin-bottom: 3px;
+    font-size: 11px;
+    padding: 4px 8px;
+    height: 34px;
+    white-space: nowrap;
+    align-self: flex-end;
 }
 
-/* Copy success feedback */
 button.copied {
-  background-color: #2bb673;   /* soft green */
-  color: white;
-  border-color: #2bb673;
+    background-color: var(--color-success);
+    color: white;
+    border-color: var(--color-success);
 }
 
-/* Toggle switches */
+/* ================================
+   TOGGLE SWITCHES
+================================ */
+
 .toggle-switch {
     display: flex;
     align-items: center;
@@ -306,14 +605,14 @@ button.copied {
     position: relative;
     width: 32px;
     height: 18px;
-    background: #c6cbd2;
+    background: var(--toggle-off);
     border-radius: 9px;
     transition: background 0.2s ease;
     flex-shrink: 0;
 }
 
 .toggle-switch input:checked + .toggle-track {
-    background: #2b6cb0;
+    background: var(--toggle-on);
 }
 
 .toggle-thumb {
@@ -341,7 +640,10 @@ button.copied {
     opacity: 0.6;
 }
 
-/* Bead type suggestion chip */
+/* ================================
+   BEAD TYPE CHIP
+================================ */
+
 .type-field-wrap {
     min-height: 18px;
 }
@@ -350,31 +652,53 @@ button.copied {
     margin-top: 3px;
     font-size: 11px;
     padding: 2px 7px;
-    background: #ebf4ff;
-    border: 1px solid #90cdf4;
+    background: var(--chip-bg);
+    border: 1px solid var(--chip-border);
     border-radius: 4px;
-    color: #2b6cb0;
+    color: var(--chip-text);
     cursor: pointer;
     font-weight: 600;
     white-space: nowrap;
 }
 
 .bead-type-chip:hover {
-    background: #bee3f8;
-    border-color: #63b3ed;
+    background: var(--chip-hover-bg);
+    border-color: var(--chip-hover-border);
 }
 
-/* SASA panel */
+/* ================================
+   SASA PANEL
+================================ */
+
 #sasa-panel {
     display: flex;
     flex-direction: column;
     gap: 2px;
     padding: 6px 10px;
-    background: #eef0f4;
-    border: 1px solid #c6cbd2;
+    background: var(--bg-controls);
+    border: 1px solid var(--border-input);
     border-radius: 6px;
     font-size: 12px;
     line-height: 1.6;
+}
+
+.sasa-title {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text-muted);
+    margin-bottom: 2px;
+}
+
+.sasa-toggle {
+    font-size: 12px;
+}
+
+.sasa-divider {
+    border: none;
+    border-top: 1px solid var(--border-input);
+    margin: 4px 0 2px;
 }
 
 .sasa-row {
@@ -384,10 +708,49 @@ button.copied {
 }
 
 .sasa-label {
-    color: #666;
+    color: var(--text-secondary);
     font-weight: 500;
 }
 
-.sasa-diff-good { color: #2bb673; font-weight: 600; }
-.sasa-diff-warn { color: #d97706; font-weight: 600; }
-.sasa-diff-bad  { color: #dc2626; font-weight: 600; }
+.sasa-diff-good { color: var(--sasa-good); font-weight: 600; }
+.sasa-diff-warn { color: var(--sasa-warn); font-weight: 600; }
+.sasa-diff-bad  { color: var(--sasa-bad);  font-weight: 600; }
+
+/* ================================
+   DOC PAGE TABLES + REFS
+================================ */
+
+.help-table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 13px;
+    margin-bottom: 16px;
+}
+
+.help-table th,
+.help-table td {
+    text-align: left;
+    padding: 7px 12px;
+    border: 1px solid var(--border-light);
+}
+
+.help-table thead tr {
+    background: var(--bg-hover);
+    font-weight: 600;
+}
+
+.ref-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 16px 0;
+}
+
+.ref-list li {
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    background: var(--bg-ref);
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 1.6;
+}

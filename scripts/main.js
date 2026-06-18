@@ -35,6 +35,62 @@ function loadMolecule(event, stage) {
     stage.signals.clicked.add((pickingProxy) => vizu.onClick(pickingProxy));
 }
 
+function initTabs() {
+    const btns = document.querySelectorAll('.tab-btn');
+    const panels = document.querySelectorAll('.tab-panel');
+    btns.forEach(btn => {
+        btn.onclick = () => {
+            btns.forEach(b => b.classList.remove('active'));
+            panels.forEach(p => p.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+        };
+    });
+}
+
+function initTheme(stage) {
+    const themeBtn = document.getElementById('theme-toggle');
+    const bgToggle = document.getElementById('toggle-bg');
+
+    function syncBg(isDark) {
+        bgToggle.checked = !isDark;
+        stage.setParameters({ backgroundColor: isDark ? 'black' : 'white' });
+    }
+
+    // Initialise BG to match the starting theme (set by the inline <head> script)
+    syncBg(document.documentElement.getAttribute('data-theme') === 'dark');
+
+    themeBtn.onclick = () => {
+        const nextDark = document.documentElement.getAttribute('data-theme') !== 'dark';
+        if (nextDark) {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            localStorage.setItem('cgbuilder-theme', 'dark');
+        } else {
+            document.documentElement.removeAttribute('data-theme');
+            localStorage.setItem('cgbuilder-theme', 'light');
+        }
+        syncBg(nextDark);
+    };
+
+    bgToggle.onchange = () => {
+        stage.setParameters({ backgroundColor: bgToggle.checked ? 'white' : 'black' });
+    };
+}
+
+function initNavbar(stage) {
+    const tabs = document.querySelectorAll('.navbar-tab');
+    const pages = document.querySelectorAll('.page');
+    tabs.forEach(tab => {
+        tab.onclick = () => {
+            tabs.forEach(t => t.classList.remove('active'));
+            pages.forEach(p => p.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById('page-' + tab.dataset.page).classList.add('active');
+            if (tab.dataset.page === 'app') stage.handleResize();
+        };
+    });
+}
+
 function main() {
     // Capture wheel events within the viewer so the page doesn't scroll when zooming.
     // https://github.com/nglviewer/ngl/issues/878#issuecomment-913504711
@@ -47,14 +103,30 @@ function main() {
 
     window.addEventListener("resize", () => stage.handleResize(), false);
 
-	let mol_select = document.getElementById("mol-select");
-	mol_select.onchange = (event) => loadMolecule(event, stage);
+    let mol_select = document.getElementById("mol-select");
+    mol_select.onchange = (event) => loadMolecule(event, stage);
 
     // Remove preset left-click centering behaviour (added in NGL v2.0.0-dev.11).
-	stage.mouseControls.remove("clickPick-left");
+    stage.mouseControls.remove("clickPick-left");
 
     let buttons = document.getElementsByClassName("new-bead");
     for (const button of buttons) button.disabled = true;
+
+    document.getElementById('save-image').onclick = () => {
+        stage.makeImage({ factor: 2, antialias: true, trim: false, transparent: false })
+            .then(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'cgbuilder.png';
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+    };
+
+    initTheme(stage);
+    initTabs();
+    initNavbar(stage);
 }
 
 window.onload = main;

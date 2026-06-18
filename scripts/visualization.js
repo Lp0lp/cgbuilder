@@ -32,7 +32,8 @@ export class Visualization {
         this._aaSASAValue = null;     // cached; recomputed only on molecule load
 
         let toggleCG = document.getElementById('toggle-cg');
-        toggleCG.onclick = (event) => this.onToggleCG(event);
+        toggleCG.onchange = (event) => this.onToggleCG(event);
+        toggleCG.checked = false;
         toggleCG.disabled = false;
 
         let toggleAASurface = document.getElementById('toggle-aa-surface');
@@ -103,7 +104,8 @@ export class Visualization {
             surfaceType: "sas",
             probeRadius: PROBE_RADIUS,
             color: "#f4b642",
-            opacity: 0.3,
+            opacity: 0.6,
+            wireframe: true,
             visible: this.showAASurface,
             useWorker: false,
         });
@@ -117,17 +119,19 @@ export class Visualization {
             labelType: "text",
             labelText: this.collection.structureAtomNames(component.structure),
             labelGrouping: "atom",
+            visible: false,
         });
 
-        let buttons = document.getElementsByClassName("toggle-aa-labels");
-        for (const button of buttons) {
-            button.disabled = false;
-            button.onclick = (event) => this.onToggleAALabels(event);
+        const toggle = document.getElementById('toggle-aa-labels');
+        if (toggle) {
+            toggle.checked = false;
+            toggle.disabled = false;
+            toggle.onchange = (event) => this.onToggleAALabels(event);
         }
     }
 
     onToggleCG(event) {
-        this.showCG = (!this.showCG);
+        this.showCG = event.target.checked;
         this.drawCG();
     }
 
@@ -269,7 +273,8 @@ export class Visualization {
                     radiusScale: 1.0,
                     probeRadius: PROBE_RADIUS,
                     color: "#7fc8a9",
-                    opacity: 0.3,
+                    opacity: 0.6,
+                    wireframe: true,
                     useWorker: false,
                 });
                 this.cgSurfaceComp = comp;
@@ -278,12 +283,7 @@ export class Visualization {
     }
 
     onToggleAALabels(event) {
-        let visible = !this.aa_labels.visible;
-        this.aa_labels.setVisibility(visible);
-        const text = visible ? 'Hide labels' : 'Show labels';
-        for (const button of document.getElementsByClassName("toggle-aa-labels")) {
-            button.textContent = text;
-        }
+        this.aa_labels.setVisibility(event.target.checked);
     }
 
     onClick(pickingProxy) {
@@ -459,24 +459,37 @@ export class Visualization {
         headerRow.appendChild(removeNode);
         item.appendChild(headerRow);
 
-        // ATOM LIST
-        let nameList = document.createElement("ul");
-        for (let i = 0; i < bead.atoms.length; i++) {
-            const atom = bead.atoms[i];
-            const name = this.collection.atomName(atom);
-            const w = (bead.atomWeights && bead.atomWeights[atom.index])
-                ? bead.atomWeights[atom.index] : 1;
-            let subitem = document.createElement("li");
-            subitem.appendChild(document.createTextNode(w > 1 ? `${name} ×${w}` : name));
-            if (this.collection.countBeadsForAtom(atom) > 1) {
-                let shareitem = document.createElement("abbr");
-                shareitem.title = "This atom is shared between multiple beads.";
-                shareitem.textContent = " 🔗";
-                subitem.appendChild(shareitem);
+        // ATOM LIST — collapsible
+        if (bead.atoms.length > 0) {
+            const atomDetails = document.createElement("details");
+            atomDetails.classList.add("atom-list-details");
+
+            const atomSummary = document.createElement("summary");
+            atomSummary.classList.add("atom-list-summary");
+            const n = bead.atoms.length;
+            atomSummary.textContent = `${n} atom${n !== 1 ? 's' : ''}`;
+            atomSummary.addEventListener("click", e => e.stopPropagation());
+            atomDetails.appendChild(atomSummary);
+
+            let nameList = document.createElement("ul");
+            for (let i = 0; i < bead.atoms.length; i++) {
+                const atom = bead.atoms[i];
+                const name = this.collection.atomName(atom);
+                const w = (bead.atomWeights && bead.atomWeights[atom.index])
+                    ? bead.atomWeights[atom.index] : 1;
+                let subitem = document.createElement("li");
+                subitem.appendChild(document.createTextNode(w > 1 ? `${name} ×${w}` : name));
+                if (this.collection.countBeadsForAtom(atom) > 1) {
+                    let shareitem = document.createElement("abbr");
+                    shareitem.title = "This atom is shared between multiple beads.";
+                    shareitem.textContent = " 🔗";
+                    subitem.appendChild(shareitem);
+                }
+                nameList.appendChild(subitem);
             }
-            nameList.appendChild(subitem);
+            atomDetails.appendChild(nameList);
+            item.appendChild(atomDetails);
         }
-        item.appendChild(nameList);
 
         item.onclick = (event) => this.onBeadSelected(event);
         list.appendChild(item);
