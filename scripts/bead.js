@@ -111,6 +111,10 @@ export class BeadCollection {
         this._current = this._beads[index];
     }
 
+    deselectBead() {
+        this._current = null;
+    }
+
     clearBeads() {
         this._beads = [];
         this._current = null;

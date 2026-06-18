@@ -6,6 +6,20 @@ import { generateNDX, generateMap, generateGRO, generatePythonAssignments,
          parseShakerMapping } from './fileformats.js';
 import { loadRDKit } from './rdkit.js';
 
+function typeColor(beadType) {
+    const t = (beadType || '').toUpperCase();
+    const cls = (t[0] === 'S' || t[0] === 'T') ? t[1] : t[0];
+    switch (cls) {
+        case 'C': return [0.55, 0.55, 0.55]; // grey   – apolar
+        case 'N': return [0.29, 0.56, 0.85]; // blue   – intermediate
+        case 'P': return [0.91, 0.30, 0.24]; // red    – polar
+        case 'Q': return [0.95, 0.61, 0.07]; // amber  – charged
+        case 'D': return [0.95, 0.61, 0.07]; // amber  – divalent (charged)
+        case 'X': return [0.18, 0.80, 0.44]; // green  – halogen
+        default:  return [0.75, 0.75, 0.75]; // light grey – unknown/placeholder
+    }
+}
+
 function findParentWithClass(element, className) {
     let node = element;
     while (node) {
@@ -22,6 +36,7 @@ export class Visualization {
         this.stage = stage;
         this.shapeComp = null;
         this.showCG = false;
+        this.showCGLabels = false;
 
         // Solvent-accessible surface area (SASA) state.
         this.component = null;        // the loaded AA structure component
@@ -31,6 +46,11 @@ export class Visualization {
         this.showCGSurface = false;
         this._cgSurfaceToken = 0;     // guards against stale async surface loads
         this._aaSASAValue = null;     // cached; recomputed only on molecule load
+
+        let toggleCGLabels = document.getElementById('toggle-cg-labels');
+        toggleCGLabels.onchange = (e) => { this.showCGLabels = e.target.checked; this.drawCG(); };
+        toggleCGLabels.checked = false;
+        toggleCGLabels.disabled = false;
 
         let toggleCG = document.getElementById('toggle-cg');
         toggleCG.onchange = (event) => this.onToggleCG(event);
@@ -300,11 +320,15 @@ export class Visualization {
 
     onClick(pickingProxy) {
         if (pickingProxy && pickingProxy.atom) {
+            if (!this.currentBead) return;
             if (pickingProxy.mouse && pickingProxy.mouse.shiftKey) {
                 this.currentBead.removeAtom(pickingProxy.atom);
             } else {
                 this.currentBead.addAtom(pickingProxy.atom);
             }
+            this.updateSelection();
+        } else if (!pickingProxy) {
+            this.collection.deselectBead();
             this.updateSelection();
         }
     }
@@ -322,7 +346,14 @@ export class Visualization {
         let nodes = document.getElementById("bead-list").childNodes;
         let index = 0;
         for (const child of nodes) {
-            if (child === realTarget) this.collection.selectBead(index);
+            if (child === realTarget) {
+                if (this.collection.beads[index] === this.currentBead) {
+                    this.collection.deselectBead();
+                } else {
+                    this.collection.selectBead(index);
+                }
+                break;
+            }
             index += 1;
         }
         this.updateSelection();
@@ -358,7 +389,7 @@ export class Visualization {
     }
 
 	selectionString(bead) {
-        if (bead.atoms.length > 0) {
+        if (bead && bead.atoms.length > 0) {
             let sel = "@";
             for (let i = 0; i < bead.atoms.length; i++) {
                 if (sel !== '@') sel = sel + ',';
@@ -612,7 +643,6 @@ export class Visualization {
     }
 
     drawCG() {
-        let normalColor = [0.58, 0.79, 0.66];
         let selectedColor = [0.25, 0.84, 0.96];
         let opacity = this.showCG ? 1 : 0.2;
 
@@ -620,8 +650,14 @@ export class Visualization {
 
         let shape = new NGL.Shape("shape");
         for (let bead of this.collection.beads) {
-            const color = bead === this.currentBead ? selectedColor : normalColor;
-            if (bead.atoms.length > 0) shape.addSphere(bead.center, color, 1.12, bead.name);
+            const color = bead === this.currentBead ? selectedColor : typeColor(bead.type);
+            if (bead.atoms.length > 0) {
+                const center = bead.center;
+                shape.addSphere(center, color, 1.12, bead.name);
+                if (this.showCGLabels) shape.addText(
+                    [center.x, center.y + 1.8, center.z], color, 2.5, bead.name
+                );
+            }
         }
         this.shapeComp = this.stage.addComponentFromObject(shape);
         this.shapeComp.addRepresentation("buffer", {opacity: opacity});
