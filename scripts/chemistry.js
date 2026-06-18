@@ -121,27 +121,54 @@ export function perceiveChemistry(structure) {
         ringAdj.set(k, [...adj.get(k)].filter(n => !removed.has(n)));
     }
 
-    // Fundamental cycles via recursive DFS (molecules are small).
-    const color = new Map(); // 1 = on stack, 2 = done
-    const par = new Map();
+    // Fundamental cycles via BFS spanning tree (handles fused rings correctly).
+    // DFS back-edge detection misses cycles in polycyclic systems where the
+    // closing atom of a secondary ring is already marked "done" — the BFS
+    // approach finds every ring by treating each non-tree edge as a cycle.
     const cycles = [];
-    const dfs = (u, p) => {
-        color.set(u, 1); par.set(u, p);
-        for (const v of ringAdj.get(u)) {
-            if (v === p) continue;
-            if (color.get(v) === 1) {
-                const cyc = [u];
-                let x = u;
-                while (x !== v) { x = par.get(x); cyc.push(x); }
-                cycles.push(cyc);
-            } else if (!color.has(v)) {
-                dfs(v, u);
+    {
+        const bfsParent = new Map();
+        const bfsQ = [];
+        for (const start of ringAdj.keys()) {
+            if (bfsParent.has(start)) continue;
+            bfsParent.set(start, -1);
+            bfsQ.push(start);
+            let qi = 0;
+            while (qi < bfsQ.length) {
+                const u = bfsQ[qi++];
+                for (const v of ringAdj.get(u)) {
+                    if (!bfsParent.has(v)) { bfsParent.set(v, u); bfsQ.push(v); }
+                }
             }
         }
-        color.set(u, 2);
-    };
-    for (const start of ringAdj.keys()) {
-        if (!color.has(start)) dfs(start, -1);
+        const treeSet = new Set();
+        for (const [n, p] of bfsParent) {
+            if (p >= 0) treeSet.add(`${Math.min(n, p)}-${Math.max(n, p)}`);
+        }
+        const seenEdge = new Set();
+        for (const u of ringAdj.keys()) {
+            for (const v of ringAdj.get(u)) {
+                if (v <= u) continue;
+                const ekey = `${u}-${v}`;
+                if (treeSet.has(ekey) || seenEdge.has(ekey)) continue;
+                seenEdge.add(ekey);
+                // Non-tree edge u-v: find paths to LCA in spanning tree.
+                const pathU = [], pathV = [];
+                for (let x = u; x >= 0; x = bfsParent.get(x) ?? -1) pathU.push(x);
+                for (let x = v; x >= 0; x = bfsParent.get(x) ?? -1) pathV.push(x);
+                const setU = new Map(pathU.map((n, i) => [n, i]));
+                let lca = -1, vIdx = -1;
+                for (let i = 0; i < pathV.length; i++) {
+                    if (setU.has(pathV[i])) { lca = pathV[i]; vIdx = i; break; }
+                }
+                if (lca < 0) continue;
+                const cycle = [
+                    ...pathU.slice(0, setU.get(lca) + 1),
+                    ...pathV.slice(0, vIdx).reverse(),
+                ];
+                if (cycle.length >= 3) cycles.push(cycle);
+            }
+        }
     }
 
     const isHetero = idx => ['N', 'O', 'S'].includes(element.get(idx));
@@ -321,7 +348,9 @@ export function fragmentToSmiles(beadAtoms,
         const sym = d.el === 'CL' ? 'Cl' : d.el === 'BR' ? 'Br'
                   : d.el.charAt(0) + d.el.slice(1).toLowerCase();
 
-        const needsBracket = d.hCount > 0 || d.charge !== 0 || !_ORGANIC.has(d.el);
+        // hCount is computed from the same valence table SMILES uses for implicit H,
+        // so brackets are never needed just because hCount > 0 for organic atoms.
+        const needsBracket = d.charge !== 0 || !_ORGANIC.has(d.el);
         if (!needsBracket) return sym;
 
         let inner = sym;

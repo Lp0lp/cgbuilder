@@ -149,7 +149,7 @@ export class Visualization {
 
     countHeavyAtoms(structure) {
         let count = 0;
-        structure.eachAtom(ap => { if (ap.element !== 'H') count++; });
+        structure.eachAtom(ap => { if ((ap.element || '').toUpperCase() !== 'H') count++; });
         this.nHeavyAtoms = count;
     }
 
@@ -306,6 +306,9 @@ export class Visualization {
             this.updateSelection();
         } catch (err) {
             console.error('Per-bead prediction failed:', err);
+            btn.textContent = 'Failed';
+            setTimeout(() => { btn.textContent = originalText; btn.disabled = false; }, 2000);
+            return;
         }
         btn.textContent = originalText;
         btn.disabled = false;
@@ -743,7 +746,7 @@ export class Visualization {
 
     drawCG() {
         let selectedColor = [0.25, 0.84, 0.96];
-        let opacity = this.showCG ? 1 : 0.2;
+        let opacity = this.showCG ? 1 : 0.4;
 
         if (this.shapeComp != null) this.stage.removeComponent(this.shapeComp);
 

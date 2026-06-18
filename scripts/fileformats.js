@@ -20,7 +20,7 @@ export function generateMap(collection) {
         output += bead.name + " ";
         for (const atom of bead.atoms) {
             atomname = collection.atomName(atom);
-            if (!atomToBeads[atomname]) {
+            if (atomToBeads[atomname] === undefined) {
                 atomToBeads[atomname] = [];
                 atoms.push(atom);
             }
