@@ -115,6 +115,17 @@ export class Visualization {
         this.updateSASA();
     }
 
+    checkAtomNameUniqueness(structure) {
+        const seen = new Set();
+        let hasDupes = false;
+        structure.eachAtom(ap => {
+            const name = this.collection.atomName(ap);
+            if (seen.has(name)) hasDupes = true;
+            else seen.add(name);
+        });
+        document.getElementById('atom-name-warning').hidden = !hasDupes;
+    }
+
     attachAALabels(component) {
         this.aa_labels = component.addRepresentation("label", {
             labelType: "text",
@@ -533,7 +544,14 @@ export class Visualization {
     updateNDX() { document.getElementById('ndx-output').textContent = generateNDX(this.collection); }
     updateMap() { document.getElementById('map-output').textContent = generateMap(this.collection); }
     updateGRO() { document.getElementById('gro-output').textContent = generateGRO(this.collection); }
-    updatePY()  { document.getElementById('py-output').textContent  = generatePythonAssignments(this.collection); }
+    updatePY() {
+        const counts = new Map();
+        for (const bead of this.collection.beads)
+            counts.set(bead.name, (counts.get(bead.name) || 0) + 1);
+        const hasDupes = [...counts.values()].some(n => n > 1);
+        document.getElementById('py-warning').hidden = !hasDupes;
+        document.getElementById('py-output').textContent = generatePythonAssignments(this.collection);
+    }
 
     updateSASA() {
         const aaEl   = document.getElementById('aa-sasa');

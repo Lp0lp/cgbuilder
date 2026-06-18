@@ -23,6 +23,7 @@ function loadMolecule(event, stage) {
             component.autoView();
             vizu.attachAALabels(component);
             vizu.attachRepresentation(component);
+            vizu.checkAtomNameUniqueness(component.structure);
             vizu.updateSelection();
         })
         .catch((err) => {
