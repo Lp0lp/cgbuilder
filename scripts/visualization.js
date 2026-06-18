@@ -343,6 +343,7 @@ export class Visualization {
             index += 1;
         }
         this.updateName();
+        this.checkDuplicateNames();
     }
 
 	selectionString(bead) {
@@ -374,7 +375,7 @@ export class Visualization {
         this.updateName();
     }
 
-    createBeadListItem(bead) {
+    createBeadListItem(bead, isDuplicate = false) {
         let list = document.getElementById("bead-list");
         let item = document.createElement("li");
         item.classList.add("bead-view");
@@ -401,6 +402,7 @@ export class Visualization {
         nameNode.type = "text";
         nameNode.value = bead.name;
         nameNode.classList.add("bead-name");
+        if (isDuplicate) nameNode.classList.add('input-error');
         nameNode.oninput = (event) => this.onNameChange(event);
         nameNode.addEventListener("mousedown", e => e.stopPropagation());
         addLabeledField("Name", nameNode);
@@ -502,7 +504,25 @@ export class Visualization {
     }
 
     createBeadList() {
-        for (let bead of this.collection.beads) this.createBeadListItem(bead);
+        const counts = new Map();
+        for (const bead of this.collection.beads)
+            counts.set(bead.name, (counts.get(bead.name) || 0) + 1);
+        const dupes = new Set([...counts.entries()].filter(([, n]) => n > 1).map(([k]) => k));
+        for (const bead of this.collection.beads) this.createBeadListItem(bead, dupes.has(bead.name));
+    }
+
+    checkDuplicateNames() {
+        const counts = new Map();
+        for (const bead of this.collection.beads)
+            counts.set(bead.name, (counts.get(bead.name) || 0) + 1);
+        const items = document.getElementById('bead-list').childNodes;
+        let i = 0;
+        for (const item of items) {
+            const bead = this.collection.beads[i++];
+            if (!bead) break;
+            const nameInput = item.querySelector('.bead-name');
+            if (nameInput) nameInput.classList.toggle('input-error', (counts.get(bead.name) || 0) > 1);
+        }
     }
 
     clearBeadList() {

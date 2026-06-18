@@ -394,6 +394,19 @@ body {
     min-width: 0;
 }
 
+input.input-error {
+    border-color: var(--sasa-bad) !important;
+    color: var(--sasa-bad);
+}
+
+.field:has(input.input-error) .field-label {
+    color: var(--sasa-bad);
+}
+
+.field:has(input.input-error) .field-label::after {
+    content: ' ⚠';
+}
+
 .bead-fields input {
     width: 100%;
     box-sizing: border-box;
