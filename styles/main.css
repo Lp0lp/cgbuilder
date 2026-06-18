@@ -31,8 +31,9 @@
     --chip-hover-bg:        #bee3f8;
     --chip-hover-border:    #63b3ed;
 
-    --bead-selected-bg:     #41d6f4;
-    --bead-selected-border: #2bbbd9;
+    --bead-selected-bg:     #dbeafe;
+    --bead-selected-border: #93c5fd;
+    --bead-selected-accent: #2563eb;
 
     --toggle-off: #c6cbd2;
     --toggle-on:  #2b6cb0;
@@ -72,8 +73,9 @@
     --chip-hover-bg:        #1d4086;
     --chip-hover-border:    #388bfd;
 
-    --bead-selected-bg:     #1f6feb;
-    --bead-selected-border: #388bfd;
+    --bead-selected-bg:     #1e3a5f;
+    --bead-selected-border: #2563eb;
+    --bead-selected-accent: #60a5fa;
 
     --toggle-off: #30363d;
     --toggle-on:  #1f6feb;
@@ -358,14 +360,26 @@ body {
 }
 
 .selected-bead {
-    background-color: var(--bead-selected-bg);
+    background: var(--bead-selected-bg);
     border-color: var(--bead-selected-border);
+    border-left: 3px solid var(--bead-selected-accent);
+    padding-left: calc(0.7em - 2px);
+}
+
+.selected-bead input {
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    border-color: var(--border-input);
+}
+
+.selected-bead .field-label {
+    color: var(--text-secondary);
 }
 
 .bead-header {
     display: flex;
     justify-content: space-between;
-    align-items: flex-end;
+    align-items: center;
     gap: 12px;
 }
 
@@ -566,12 +580,10 @@ input {
 }
 
 .delete-bead {
-    margin-bottom: 3px;
     font-size: 11px;
     padding: 4px 8px;
-    height: 34px;
     white-space: nowrap;
-    align-self: flex-end;
+    flex-shrink: 0;
 }
 
 button.copied {
@@ -667,14 +679,37 @@ button.copied {
 }
 
 /* ================================
+   VIEWER PANEL
+================================ */
+
+#viewer-panel {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 6px 10px;
+    background: var(--bg-controls);
+    border: 1px solid var(--border-input);
+    border-radius: 6px;
+    font-size: 12px;
+    align-self: stretch;
+}
+
+.viewer-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+/* ================================
    SASA PANEL
 ================================ */
 
 #sasa-panel {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    justify-content: space-between;
     padding: 6px 10px;
+    align-self: stretch;
     background: var(--bg-controls);
     border: 1px solid var(--border-input);
     border-radius: 6px;
@@ -682,7 +717,7 @@ button.copied {
     line-height: 1.6;
 }
 
-.sasa-title {
+.panel-title {
     font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;
@@ -814,6 +849,25 @@ button.copied {
     justify-content: flex-end;
     gap: 8px;
     padding: 10px 16px;
+}
+
+.confirm-dialog-msg {
+    margin: 0;
+    padding: 16px 16px 12px;
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.btn-danger {
+    background: #dc2626;
+    color: white;
+    border-color: #dc2626;
+}
+
+.btn-danger:hover {
+    filter: brightness(1.1);
+    background: #dc2626;
 }
 
 .btn-primary {

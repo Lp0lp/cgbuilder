@@ -58,32 +58,38 @@
         <div class="controls-sep"></div>
 
         <button class="new-bead" disabled>New bead</button>
+        <button id="clear-beads-btn" disabled>Clear beads</button>
         <button id="predict-types" disabled>Predict bead types</button>
 
         <div class="controls-sep"></div>
 
-        <label class="toggle-switch">
-            <input type="checkbox" id="toggle-aa-labels" disabled>
-            <span class="toggle-track"><span class="toggle-thumb"></span></span>
-            AA labels
-        </label>
-        <label class="toggle-switch">
-            <input type="checkbox" id="toggle-cg" disabled>
-            <span class="toggle-track"><span class="toggle-thumb"></span></span>
-            Solid beads
-        </label>
-        <label class="toggle-switch">
-            <input type="checkbox" id="toggle-bg">
-            <span class="toggle-track"><span class="toggle-thumb"></span></span>
-            Light BG
-        </label>
-
-        <div class="controls-sep"></div>
-
-        <button id="save-image" title="Save viewer as PNG">Save PNG</button>
+        <div id="viewer-panel">
+            <div class="panel-title">Viewer</div>
+            <div class="viewer-row">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="toggle-aa-labels" disabled>
+                    <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                    AA labels
+                </label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="toggle-cg" disabled>
+                    <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                    Solid beads
+                </label>
+            </div>
+            <div class="viewer-row">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="toggle-bg">
+                    <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                    Light BG
+                </label>
+                <button id="save-image" title="Save viewer as PNG">Save PNG</button>
+                <button id="recenter" title="Reset camera to default view">Reset view</button>
+            </div>
+        </div>
 
         <div id="sasa-panel">
-            <div class="sasa-title">SASA</div>
+            <div class="panel-title">SASA</div>
             <div class="sasa-row">
                 <label class="toggle-switch sasa-toggle">
                     <input type="checkbox" id="toggle-aa-surface" disabled>
@@ -244,6 +250,18 @@
     </div>
 </div>
 
+
+<dialog id="clear-beads-dialog">
+    <div class="paste-dialog-header">
+        <span>Clear all beads?</span>
+        <button class="paste-dialog-close" id="clear-beads-close" title="Close">×</button>
+    </div>
+    <p class="confirm-dialog-msg">This will remove all beads and start fresh. This cannot be undone.</p>
+    <div class="paste-dialog-footer">
+        <button id="clear-beads-cancel">Cancel</button>
+        <button id="clear-beads-confirm" class="btn-danger">Clear all</button>
+    </div>
+</dialog>
 
 <dialog id="paste-mapping-dialog">
     <div class="paste-dialog-header">

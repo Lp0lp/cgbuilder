@@ -36,6 +36,7 @@ function loadMolecule(event, stage) {
     }
 
     document.getElementById('load-mapping-btn').disabled = false;
+    document.getElementById('clear-beads-btn').disabled = false;
 
     stage.signals.clicked.add((pickingProxy) => vizu.onClick(pickingProxy));
 }
@@ -117,6 +118,20 @@ function main() {
     let buttons = document.getElementsByClassName("new-bead");
     for (const button of buttons) button.disabled = true;
 
+    const clearDialog = document.getElementById('clear-beads-dialog');
+    document.getElementById('clear-beads-btn').onclick    = () => clearDialog.showModal();
+    document.getElementById('clear-beads-close').onclick  = () => clearDialog.close();
+    document.getElementById('clear-beads-cancel').onclick = () => clearDialog.close();
+    document.getElementById('clear-beads-confirm').onclick = () => {
+        if (currentVizu) {
+            currentVizu.collection.clearBeads();
+            currentVizu.collection.newBead();
+            currentVizu.updateSelection();
+        }
+        clearDialog.close();
+    };
+    clearDialog.addEventListener('click', e => { if (e.target === clearDialog) clearDialog.close(); });
+
     const pasteDialog = document.getElementById('paste-mapping-dialog');
     const pasteArea   = document.getElementById('mapping-paste-area');
 
@@ -133,6 +148,11 @@ function main() {
         pasteDialog.close();
     };
     pasteDialog.addEventListener('click', e => { if (e.target === pasteDialog) pasteDialog.close(); });
+
+    document.getElementById('recenter').onclick = () => {
+        stage.setParameters({ clipNear: 0, clipFar: 100, fogNear: 50, fogFar: 100 });
+        stage.autoView();
+    };
 
     document.getElementById('save-image').onclick = () => {
         stage.makeImage({ factor: 2, antialias: true, trim: false, transparent: false })
