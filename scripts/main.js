@@ -1,22 +1,22 @@
 import { BeadCollection } from './bead.js';
 import { Visualization } from './visualization.js';
 import { readOriginalAtomNames, bondAwareRepresentationParams } from './fileformats.js';
+import { EXAMPLE_PDB, EXAMPLE_MAPPING } from './example.js';
 
 let currentVizu = null;
 
-function loadMolecule(event, stage) {
+function loadMoleculeFromFile(file, stage) {
     stage.removeAllComponents();
     stage.signals.clicked.removeAll();
 
     let collection = new BeadCollection();
     let vizu = new Visualization(collection, stage);
     currentVizu = vizu;
-    let input = event.target.files[0];
 
-    const namePromise = readOriginalAtomNames(input);
-    const componentPromise = stage.loadFile(input);
+    const namePromise = readOriginalAtomNames(file);
+    const componentPromise = stage.loadFile(file);
 
-    Promise.all([namePromise, componentPromise])
+    const ready = Promise.all([namePromise, componentPromise])
         .then(([names, component]) => {
             collection.setOriginalAtomNames(names || []);
             component.addRepresentation("ball+stick", bondAwareRepresentationParams());
@@ -40,6 +40,12 @@ function loadMolecule(event, stage) {
     document.getElementById('clear-beads-btn').disabled = false;
 
     stage.signals.clicked.add((pickingProxy) => vizu.onClick(pickingProxy));
+
+    return ready;
+}
+
+function loadMolecule(event, stage) {
+    loadMoleculeFromFile(event.target.files[0], stage);
 }
 
 function initTabs() {
@@ -112,6 +118,13 @@ function main() {
 
     let mol_select = document.getElementById("mol-select");
     mol_select.onchange = (event) => loadMolecule(event, stage);
+
+    document.getElementById('load-example-btn').onclick = () => {
+        const file = new File([EXAMPLE_PDB], 'example_L1.pdb', { type: 'text/plain' });
+        loadMoleculeFromFile(file, stage).then(() => {
+            if (currentVizu) currentVizu.loadShakerMapping(EXAMPLE_MAPPING);
+        });
+    };
 
     // Remove preset left-click centering behaviour (added in NGL v2.0.0-dev.11).
     stage.mouseControls.remove("clickPick-left");
