@@ -111,6 +111,12 @@ export class BeadCollection {
         this._current = this._beads[index];
     }
 
+    clearBeads() {
+        this._beads = [];
+        this._current = null;
+        this._largestIndex = -1;
+    }
+
     countBeadsForAtom(atom) {
         let count = 0;
         for (const bead of this.beads) {

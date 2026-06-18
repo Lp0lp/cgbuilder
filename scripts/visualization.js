@@ -2,7 +2,8 @@ import { buildCanonTable, determineBeadType } from './prediction.js';
 import { perceiveChemistry, fragmentToSmiles, beadDonorCount, structureHasHydrogens } from './chemistry.js';
 import { PROBE_RADIUS, aaSASA, cgSASA, beadsToPDB } from './sasa.js';
 import { generateNDX, generateMap, generateGRO, generatePythonAssignments,
-         download, copyTextToClipboard, bondAwareRepresentationParams } from './fileformats.js';
+         download, copyTextToClipboard, bondAwareRepresentationParams,
+         parseShakerMapping } from './fileformats.js';
 import { loadRDKit } from './rdkit.js';
 
 function findParentWithClass(element, className) {
@@ -537,6 +538,39 @@ export class Visualization {
             diffEl.textContent = '—';
             diffEl.className = '';
         }
+    }
+
+    loadShakerMapping(text) {
+        if (!this.component) return;
+        const beadDefs = parseShakerMapping(text);
+        if (!beadDefs.length) { console.warn('No beads found in mapping file'); return; }
+
+        // Collect name → index during iteration (avoids NGL proxy-reuse issues)
+        const nameToIndex = new Map();
+        this.component.structure.eachAtom(ap => {
+            const name = this.collection.atomName(ap);
+            if (!nameToIndex.has(name)) nameToIndex.set(name, ap.index);
+        });
+
+        this.collection.clearBeads();
+
+        for (const def of beadDefs) {
+            const bead = this.collection.newBead();
+            bead.name = def.name;
+            bead.type = def.type;
+            bead.charge = def.charge;
+            for (const atomName of def.atoms) {
+                const idx = nameToIndex.get(atomName);
+                if (idx !== undefined) {
+                    bead.addAtom(this.component.structure.getAtomProxy(idx));
+                } else {
+                    console.warn(`Mapping import: atom "${atomName}" not found in structure`);
+                }
+            }
+        }
+
+        this.collection.selectBead(0);
+        this.updateSelection();
     }
 
     drawCG() {

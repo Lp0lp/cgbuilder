@@ -2,12 +2,15 @@ import { BeadCollection } from './bead.js';
 import { Visualization } from './visualization.js';
 import { readOriginalAtomNames, bondAwareRepresentationParams } from './fileformats.js';
 
+let currentVizu = null;
+
 function loadMolecule(event, stage) {
     stage.removeAllComponents();
     stage.signals.clicked.removeAll();
 
     let collection = new BeadCollection();
     let vizu = new Visualization(collection, stage);
+    currentVizu = vizu;
     let input = event.target.files[0];
 
     const namePromise = readOriginalAtomNames(input);
@@ -31,6 +34,8 @@ function loadMolecule(event, stage) {
         button.onclick = (event) => vizu.onNewBead(event);
         button.disabled = false;
     }
+
+    document.getElementById('load-mapping-btn').disabled = false;
 
     stage.signals.clicked.add((pickingProxy) => vizu.onClick(pickingProxy));
 }
@@ -111,6 +116,23 @@ function main() {
 
     let buttons = document.getElementsByClassName("new-bead");
     for (const button of buttons) button.disabled = true;
+
+    const pasteDialog = document.getElementById('paste-mapping-dialog');
+    const pasteArea   = document.getElementById('mapping-paste-area');
+
+    document.getElementById('load-mapping-btn').onclick = () => {
+        pasteArea.value = '';
+        pasteDialog.showModal();
+        pasteArea.focus();
+    };
+    document.getElementById('paste-dialog-close').onclick  = () => pasteDialog.close();
+    document.getElementById('paste-dialog-cancel').onclick = () => pasteDialog.close();
+    document.getElementById('paste-dialog-apply').onclick  = () => {
+        const text = pasteArea.value.trim();
+        if (text && currentVizu) currentVizu.loadShakerMapping(text);
+        pasteDialog.close();
+    };
+    pasteDialog.addEventListener('click', e => { if (e.target === pasteDialog) pasteDialog.close(); });
 
     document.getElementById('save-image').onclick = () => {
         stage.makeImage({ factor: 2, antialias: true, trim: false, transparent: false })

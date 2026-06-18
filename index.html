@@ -53,6 +53,8 @@
             <input id="mol-select" type="file" name="files" accept=".pdb,.cif,.ent,.gz,.gro,.sdf,.sd,.mol2,.mol"/>
         </form>
 
+        <button id="load-mapping-btn" disabled>Load mapping</button>
+
         <div class="controls-sep"></div>
 
         <button class="new-bead" disabled>New bead</button>
@@ -242,5 +244,22 @@
     </div>
 </div>
 
+
+<dialog id="paste-mapping-dialog">
+    <div class="paste-dialog-header">
+        <span>Paste Shaker mapping</span>
+        <button class="paste-dialog-close" id="paste-dialog-close" title="Close">×</button>
+    </div>
+    <textarea id="mapping-paste-area" rows="14" spellcheck="false" placeholder="mapping = {
+    &quot;UNK&quot;: {
+        &quot;BB&quot;: {&quot;type&quot;: &quot;P1&quot;, &quot;charge&quot;: 0, &quot;atoms&quot;: [&#39;CA&#39;, &#39;CB&#39;]},
+        ...
+    },
+}"></textarea>
+    <div class="paste-dialog-footer">
+        <button id="paste-dialog-cancel">Cancel</button>
+        <button id="paste-dialog-apply" class="btn-primary">Apply</button>
+    </div>
+</dialog>
 </body>
 </html>

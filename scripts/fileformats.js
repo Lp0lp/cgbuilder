@@ -169,6 +169,18 @@ export function readOriginalAtomNames(file) {
         .catch(() => []);
 }
 
+export function parseShakerMapping(text) {
+    const beads = [];
+    // Matches each bead line: "NAME": {"type": "T", "charge": 0, "atoms": ['A1', 'A2']}
+    const re = /"([^"]+)":\s*\{\s*"type":\s*"([^"]*)",\s*"charge":\s*([^,\s\n]+),\s*"atoms":\s*\[([^\]]*)\]/g;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+        const atoms = [...m[4].matchAll(/['"]([^'"]+)['"]/g)].map(x => x[1]);
+        beads.push({ name: m[1], type: m[2], charge: parseFloat(m[3]) || 0, atoms });
+    }
+    return beads;
+}
+
 export function bondAwareRepresentationParams(overrides = {}) {
     return Object.assign({ multipleBond: true, bondSpacing: 1, bondScale: 0.4 }, overrides);
 }
