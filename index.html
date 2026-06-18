@@ -18,6 +18,7 @@
         })();
     </script>
     <script src="https://cdn.rawgit.com/arose/ngl/v2.0.0-dev.39/dist/ngl.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
     <script type="module" src="scripts/main.js"></script>
     <link rel="stylesheet" href="styles/main.css" />
 </head>
@@ -27,10 +28,9 @@
 <nav id="navbar">
     <span class="navbar-brand">🧱 CGBuilder</span>
     <div class="navbar-tabs">
-        <button class="navbar-tab active" data-page="app">App</button>
+        <button class="navbar-tab active" data-page="app">Builder</button>
         <button class="navbar-tab" data-page="howto">How to use</button>
-        <button class="navbar-tab" data-page="guidelines">Guidelines</button>
-        <button class="navbar-tab" data-page="resources">Resources</button>
+        <button class="navbar-tab" data-page="guidelines">Guidelines &amp; Resources</button>
     </div>
     <div class="navbar-right">
         <button id="theme-toggle" class="navbar-icon-link theme-toggle" title="Toggle dark mode">
@@ -190,96 +190,12 @@
 
 <!-- ===== HOW TO USE PAGE ===== -->
 <div id="page-howto" class="page doc-page">
-    <div class="doc-content">
-        <h1>How to use CGBuilder</h1>
-        <ol>
-            <li><b>Load a molecule</b> — click <em>Load molecule</em> and select a PDB, SDF, GRO, or CIF file. The structure appears in the 3D viewer.</li>
-            <li><b>Create beads</b> — click <em>New bead</em> to add a bead and select it (highlighted in blue in the list on the right).</li>
-            <li><b>Assign atoms</b> — click an atom in the viewer to add it to the selected bead. Clicking the same atom again increases its weight, shifting the bead centre toward that atom.</li>
-            <li><b>Remove atoms</b> — Shift+click an atom to reduce its weight or remove it from the bead.</li>
-            <li><b>Edit bead properties</b> — type directly into the <em>Name</em>, <em>Type</em>, and <em>Charge</em> fields on each card.</li>
-            <li><b>Predict bead types</b> — once atoms are assigned, click <em>Predict bead types</em> to get Martini 3 type suggestions based on fragment free energies. Click the suggestion chip to apply it.</li>
-            <li><b>Inspect the mapping</b> — toggle <em>CG view</em> to overlay bead spheres on the structure. Enable <em>AA surface</em> or <em>CG surface</em> to compare solvent-accessible surface areas and the Δ value.</li>
-            <li><b>Export</b> — use the tabs at the bottom of the App page to preview and download your mapping as <code>.py</code> (Python assignments), <code>.gro</code>, <code>.ndx</code>, or <code>.map</code>.</li>
-        </ol>
-        <p class="info-footnote" style="margin-top:20px;">
-            Adapted from the original <a href="https://github.com/jbarnoud/cgbuilder" target="_blank">CGBuilder by Jonathan Barnoud</a>.
-        </p>
-    </div>
+    <div class="doc-content" data-md="docs/howto.md"></div>
 </div>
 
 <!-- ===== GUIDELINES PAGE ===== -->
 <div id="page-guidelines" class="page doc-page">
-    <div class="doc-content">
-        <h1>Mapping guidelines</h1>
-
-        <h2>Bead sizes</h2>
-        <table class="help-table">
-            <thead><tr><th>Size</th><th>Label prefix</th><th>Heavy atoms</th><th>Typical use</th></tr></thead>
-            <tbody>
-                <tr><td>Regular</td><td><em>none</em></td><td>4–5</td><td>Aliphatic chains, large ring segments</td></tr>
-                <tr><td>Small</td><td>S</td><td>~3</td><td>Branched groups, small rings</td></tr>
-                <tr><td>Tiny</td><td>T</td><td>1–2</td><td>Aromatic ring beads, small polar groups</td></tr>
-            </tbody>
-        </table>
-
-        <h2>Bead polarity classes</h2>
-        <table class="help-table">
-            <thead><tr><th>Class</th><th>Description</th><th>Example groups</th></tr></thead>
-            <tbody>
-                <tr><td><b>C</b></td><td>Apolar / non-polar</td><td>CH₂ chains, aromatic carbon</td></tr>
-                <tr><td><b>N</b></td><td>Intermediate polarity, no H-bond</td><td>Ethers, esters (no donor)</td></tr>
-                <tr><td><b>P</b></td><td>Polar, can H-bond</td><td>Alcohols, amides</td></tr>
-                <tr><td><b>Q</b></td><td>Charged</td><td>Carboxylate, ammonium</td></tr>
-                <tr><td><b>X</b></td><td>Special / heteroatom</td><td>Halogens, sulfur</td></tr>
-                <tr><td><b>D</b></td><td>Hydrogen-bond donor only</td><td>NH groups</td></tr>
-            </tbody>
-        </table>
-        <p>Append <b>a</b> (acceptor) or <b>d</b> (donor) to P/N/Q types when relevant — e.g. <code>SP2a</code>, <code>TP1d</code>.</p>
-
-        <h2>General mapping rules</h2>
-        <ul>
-            <li><em>Placeholder — four-to-one mapping as default, ring handling, charged groups, virtual sites, etc.</em></li>
-        </ul>
-
-        <h2>Checking your mapping</h2>
-        <ul>
-            <li><em>Placeholder — SASA comparison, bead count, shared atoms, visual inspection tips.</em></li>
-        </ul>
-    </div>
-</div>
-
-<!-- ===== RESOURCES PAGE ===== -->
-<div id="page-resources" class="page doc-page">
-    <div class="doc-content">
-        <h1>Resources &amp; References</h1>
-
-        <h2>Key papers</h2>
-        <ul class="ref-list">
-            <li>
-                <b>Martini 3</b><br>
-                Souza, P.C.T. et al. (2021). Martini 3: a general purpose force field for coarse-grained molecular dynamics.
-                <em>Nature Methods</em>, 18, 382–388.
-                <a href="https://doi.org/10.1038/s41592-021-01098-3" target="_blank">doi:10.1038/s41592-021-01098-3</a>
-            </li>
-            <li>
-                <b>AutoMartini M3</b><br>
-                <em>Placeholder — add AutoMartini M3 reference when published.</em>
-            </li>
-            <li>
-                <b>Original CGBuilder</b><br>
-                Barnoud, J. CGBuilder.
-                <a href="https://github.com/jbarnoud/cgbuilder" target="_blank">github.com/jbarnoud/cgbuilder</a>
-            </li>
-        </ul>
-
-        <h2>Useful links</h2>
-        <ul>
-            <li><a href="http://cgmartini.nl" target="_blank">Martini force field website — cgmartini.nl</a></li>
-            <li><a href="https://github.com/Lp0lp/cgbuilder" target="_blank">CGBuilder on GitHub</a></li>
-            <li><em>Placeholder — link to documentation site when available.</em></li>
-        </ul>
-    </div>
+    <div class="doc-content" data-md="docs/guidelines.md"></div>
 </div>
 
 

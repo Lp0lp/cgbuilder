@@ -91,6 +91,15 @@ function initTheme(stage) {
     };
 }
 
+function loadDocPage(pageEl) {
+    const container = pageEl.querySelector('.doc-content[data-md]');
+    if (!container || container.dataset.loaded) return;
+    fetch(container.dataset.md)
+        .then(r => r.text())
+        .then(md => { container.innerHTML = marked.parse(md); container.dataset.loaded = '1'; })
+        .catch(() => { container.innerHTML = '<p>Could not load documentation.</p>'; });
+}
+
 function initNavbar(stage) {
     const tabs = document.querySelectorAll('.navbar-tab');
     const pages = document.querySelectorAll('.page');
@@ -99,8 +108,10 @@ function initNavbar(stage) {
             tabs.forEach(t => t.classList.remove('active'));
             pages.forEach(p => p.classList.remove('active'));
             tab.classList.add('active');
-            document.getElementById('page-' + tab.dataset.page).classList.add('active');
+            const pageEl = document.getElementById('page-' + tab.dataset.page);
+            pageEl.classList.add('active');
             if (tab.dataset.page === 'app') stage.handleResize();
+            else loadDocPage(pageEl);
         };
     });
 }

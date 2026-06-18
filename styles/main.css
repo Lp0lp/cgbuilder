@@ -234,6 +234,61 @@ body {
     line-height: 1.65;
 }
 
+.doc-content img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 16px auto;
+    border-radius: 6px;
+}
+
+.doc-content details {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 12px;
+    overflow: hidden;
+}
+
+.doc-content summary {
+    padding: 10px 14px;
+    font-weight: 600;
+    cursor: pointer;
+    background: var(--bg-controls);
+    list-style: none;
+    user-select: none;
+}
+
+.doc-content summary::before {
+    content: '▶ ';
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.doc-content details[open] summary::before {
+    content: '▼ ';
+}
+
+.doc-content details > *:not(summary) {
+    padding: 12px 16px;
+}
+
+.doc-content details.nested {
+    border: 1px solid var(--border-input);
+    border-radius: 4px;
+    margin: 8px 0 4px;
+}
+
+.doc-content details.nested > summary {
+    font-size: 13px;
+    font-weight: 500;
+    padding: 8px 12px;
+    background: var(--bg-page);
+}
+
+.doc-content details.nested > *:not(summary) {
+    padding: 10px 12px;
+}
+
 .doc-content h1 {
     font-size: 24px;
     font-weight: 700;
@@ -833,21 +888,21 @@ button.copied {
    DOC PAGE TABLES + REFS
 ================================ */
 
-.help-table {
+.doc-content table {
     border-collapse: collapse;
     width: 100%;
     font-size: 13px;
     margin-bottom: 16px;
 }
 
-.help-table th,
-.help-table td {
+.doc-content th,
+.doc-content td {
     text-align: left;
     padding: 7px 12px;
     border: 1px solid var(--border-light);
 }
 
-.help-table thead tr {
+.doc-content thead tr {
     background: var(--bg-hover);
     font-weight: 600;
 }
