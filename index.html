@@ -4,72 +4,228 @@
     <meta charset="UTF-8">
     <title>CG Builder</title>
 
-    <!-- Google Font (Inter) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 
+    <script>
+        (function() {
+            var saved = localStorage.getItem('cgbuilder-theme');
+            var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (saved === 'dark' || (!saved && prefersDark)) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            }
+        })();
+    </script>
     <script src="https://cdn.rawgit.com/arose/ngl/v2.0.0-dev.39/dist/ngl.js"></script>
-    <script src="scripts/main.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+    <script type="module" src="scripts/main.js"></script>
     <link rel="stylesheet" href="styles/main.css" />
 </head>
 
 <body>
-<div id="structview">
-	<div id="viewport"></div>
-</div>
-<div id="controls">
 
-    <div id="instructions" class="info-box">
-        <strong>How to create your mapping using 🧱CGBuilder:</strong>
-        <ul>
-            <li><b>New bead</b> creates a fresh bead and selects it.</li>
-            <li><b>Click</b> an atom to add it to the current bead (clicking again increases its weight).</li>
-            <li><b>Shift + Click</b> an atom to decrease its weight / remove it from the current bead.</li>
-        </ul>
-    
-    <div class="info-footnote">
-        Tip: You can increase and decrease a bead's "weight" to position it in the right spot!
+<nav id="navbar">
+    <span class="navbar-brand">🧱 CGBuilder</span>
+    <div class="navbar-tabs">
+        <button class="navbar-tab active" data-page="app">Builder</button>
+        <button class="navbar-tab" data-page="howto">How to use</button>
+        <button class="navbar-tab" data-page="guidelines">Guidelines &amp; Resources</button>
+    </div>
+    <div class="navbar-right">
+        <button id="theme-toggle" class="navbar-icon-link theme-toggle" title="Toggle dark mode">
+            <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        </button>
+        <a href="https://github.com/Lp0lp/cgbuilder" target="_blank" class="navbar-icon-link" title="View on GitHub">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="20" height="20" fill="currentColor">
+                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+            </svg>
+        </a>
+    </div>
+</nav>
+
+<!-- ===== APP PAGE ===== -->
+<div id="page-app" class="page active">
+    <div id="controls">
+        <div id="load-panel">
+            <div class="panel-title">Load molecule</div>
+            <div class="load-row">
+                <form>
+                    <input id="mol-select" type="file" name="files" accept=".pdb,.cif,.ent,.gz,.gro,.sdf,.sd,.mol2,.mol"/>
+                </form>
+                <div class="load-secondary">
+                    <button id="load-mapping-btn" disabled>Load mapping</button>
+                    <button id="load-example-btn">Load example</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls-sep"></div>
+
+        <div id="viewer-panel">
+            <div class="panel-title">Viewer</div>
+            <div class="viewer-row">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="toggle-aa-labels" disabled>
+                    <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                    AA labels
+                </label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="toggle-cg-labels" disabled>
+                    <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                    CG labels
+                </label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="toggle-cg" disabled>
+                    <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                    Solid beads
+                </label>
+            </div>
+            <div class="viewer-row">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="toggle-bg">
+                    <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                    Light BG
+                </label>
+                <button id="save-image" title="Save viewer as PNG">Save PNG</button>
+                <button id="recenter" title="Reset camera to default view">Reset view</button>
+            </div>
+        </div>
+
+        <div id="sasa-panel">
+            <div class="panel-title">SASA</div>
+            <div class="sasa-row">
+                <label class="toggle-switch sasa-toggle">
+                    <input type="checkbox" id="toggle-aa-surface" disabled>
+                    <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                    AA surface
+                </label>
+                <span><span id="aa-sasa">—</span> Å²</span>
+            </div>
+            <div class="sasa-row">
+                <label class="toggle-switch sasa-toggle">
+                    <input type="checkbox" id="toggle-cg-surface" disabled>
+                    <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                    CG surface
+                </label>
+                <span><span id="cg-sasa">—</span> Å²</span>
+            </div>
+            <div class="sasa-row">
+                <span class="sasa-label">Δ (CG−AA)</span>
+                <span id="sasa-diff">—</span>
+            </div>
+        </div>
+
+        <div id="mapping-panel">
+            <div class="panel-title">Mapping</div>
+            <div class="sasa-row">
+                <span class="sasa-label">Heavy atoms</span>
+                <span id="map-heavy">—</span>
+            </div>
+            <div class="sasa-row">
+                <span class="sasa-label">Beads</span>
+                <span id="map-beads">—</span>
+            </div>
+            <div class="sasa-row">
+                <span class="sasa-label">Mismatch</span>
+                <span id="map-mismatch">—</span>
+            </div>
+        </div>
     </div>
 
-    <div class="info-footnote">
-        <!-- <a href="docs.html" target="_blank">Documentation</a> · -->
-        <a href="https://github.com/yourrepo" target="_blank">Check out the GitHub repo.</a>
+    <div id="structview">
+        <div id="viewport"></div>
     </div>
 
-    <div class="info-credit">
-        Adapted from the original 
-        <a href="https://github.com/jbarnoud/cgbuilder" target="_blank">
-            CGBuilder by Jonathan Barnoud
-        </a>.
+    <div id="beadlist">
+        <div id="bead-actions">
+            <button class="new-bead btn-success" disabled>New bead</button>
+            <button id="clear-beads-btn" class="btn-danger" disabled>Clear beads</button>
+            <button id="predict-types" disabled>Predict bead types</button>
+        </div>
+        <ul id="bead-list"></ul>
     </div>
 
-</div>
-    <form>
-        <label for="files" class="btn">Load molecule</label>
-        <input id="mol-select" type="file" name="files" accept=".pdb,.cif,.ent,.gz,.gro,.sdf,.sd,.mol2,.mol"/>
-    </form>
-    <button class="new-bead" disabled>New bead</button>
-    <button class="toggle-aa-labels" disabled>Hide labels</button>
-    <button id="toggle-cg" disabled>Toggle CG view</button>
-</div>
-<div id="beadlist">
-    <ul id="bead-list"></ul>
-</div>
-<div id="file-outputs">
-    <div class="output-header">
-    <button id="dl-py" class="dl">Get the PY file</button>
-    <button id="copy-py" class="dl">Copy</button>
+    <div id="file-outputs">
+        <div class="tab-bar">
+            <button class="tab-btn active" data-tab="py">Shaker</button>
+            <button class="tab-btn" data-tab="gro">.gro</button>
+            <button class="tab-btn" data-tab="ndx">.ndx</button>
+            <button class="tab-btn" data-tab="map">.map</button>
+        </div>
+        <div class="tab-panel active" id="tab-py">
+            <div class="output-header">
+                <button id="dl-py">Download</button>
+                <button id="copy-py">Copy</button>
+            </div>
+            <div id="atom-name-warning" class="output-warning" hidden>
+                ⚠ Duplicate atom names in loaded structure — Shaker mapping may assign atoms incorrectly.
+            </div>
+            <div id="py-warning" class="output-warning" hidden>
+                ⚠ Duplicate bead names detected — Shaker output will be faulty. Fix names in the bead list.
+            </div>
+            <pre id="py-output">PY output</pre>
+        </div>
+        <div class="tab-panel" id="tab-gro">
+            <div class="output-header">
+                <button id="dl-gro">Download</button>
+            </div>
+            <pre id="gro-output">GRO output</pre>
+        </div>
+        <div class="tab-panel" id="tab-ndx">
+            <div class="output-header">
+                <button id="dl-ndx">Download</button>
+            </div>
+            <pre id="ndx-output">NDX output</pre>
+        </div>
+        <div class="tab-panel" id="tab-map">
+            <div class="output-header">
+                <button id="dl-map">Download</button>
+            </div>
+            <pre id="map-output">MAP output</pre>
+        </div>
     </div>
-    <pre id="py-output">PY output</pre>
-    <button id='dl-gro' class='dl'>Get the GRO file</button>
-    <pre id="gro-output">GRO output</pre>
-    <button id='dl-ndx' class='dl'>Get the NDX file</button>
-    <pre id="ndx-output">NDX output</pre>
-    <button id='dl-map' class='dl'>Get the MAP file</button>
-    <pre id="map-output">MAP output</pre>
-    
 </div>
+
+<!-- ===== HOW TO USE PAGE ===== -->
+<div id="page-howto" class="page doc-page">
+    <div class="doc-content" data-md="docs/howto.md"></div>
+</div>
+
+<!-- ===== GUIDELINES PAGE ===== -->
+<div id="page-guidelines" class="page doc-page">
+    <div class="doc-content" data-md="docs/guidelines.md"></div>
+</div>
+
+
+<dialog id="clear-beads-dialog">
+    <div class="paste-dialog-header">
+        <span>Clear all beads?</span>
+        <button class="paste-dialog-close" id="clear-beads-close" title="Close">×</button>
+    </div>
+    <p class="confirm-dialog-msg">This will remove all beads and start fresh. This cannot be undone.</p>
+    <div class="paste-dialog-footer">
+        <button id="clear-beads-cancel">Cancel</button>
+        <button id="clear-beads-confirm" class="btn-danger">Clear all</button>
+    </div>
+</dialog>
+
+<dialog id="paste-mapping-dialog">
+    <div class="paste-dialog-header">
+        <span>Paste Shaker mapping</span>
+        <button class="paste-dialog-close" id="paste-dialog-close" title="Close">×</button>
+    </div>
+    <textarea id="mapping-paste-area" rows="14" spellcheck="false" placeholder="mapping = {
+    &quot;UNK&quot;: {
+        &quot;BB&quot;: {&quot;type&quot;: &quot;P1&quot;, &quot;charge&quot;: 0, &quot;atoms&quot;: [&#39;CA&#39;, &#39;CB&#39;]},
+        ...
+    },
+}"></textarea>
+    <div class="paste-dialog-footer">
+        <button id="paste-dialog-cancel">Cancel</button>
+        <button id="paste-dialog-apply" class="btn-primary">Apply</button>
+    </div>
+</dialog>
 </body>
-
-</html> 
+</html>
