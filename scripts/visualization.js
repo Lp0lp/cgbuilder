@@ -750,7 +750,7 @@ export class Visualization {
 
         if (this.shapeComp != null) this.stage.removeComponent(this.shapeComp);
 
-        let shape = new NGL.Shape("shape");
+        let shape = new NGL.Shape("shape", {disablePicking: true});
         for (let bead of this.collection.beads) {
             const color = bead === this.currentBead ? selectedColor : typeColor(bead.type);
             if (bead.atoms.length > 0) {
