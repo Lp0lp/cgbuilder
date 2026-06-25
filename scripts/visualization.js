@@ -1,5 +1,7 @@
 import { buildCanonTable, determineBeadType } from './prediction.js';
-import { perceiveChemistry, fragmentToSmiles, beadDonorCount, structureHasHydrogens } from './chemistry.js';
+import {
+    perceiveChemistry, fragmentToSmiles, beadDonorCount, countResidues,
+} from './chemistry.js';
 import { PROBE_RADIUS, aaSASA, cgSASA, beadsToPDB } from './sasa.js';
 import { generateNDX, generateMap, generateGRO, generatePythonAssignments,
          download, copyTextToClipboard, bondAwareRepresentationParams,
@@ -134,6 +136,44 @@ export class Visualization {
 
         this._aaSASAValue = aaSASA(component.structure, PROBE_RADIUS);
         this.updateSASA();
+
+        // Chemistry perception (bond order / aromaticity / charge) requires
+        // explicit hydrogens — see chemistry.js's module comment for why.
+        // Computed once per load and cached, rather than per Predict click,
+        // since it's also used to reflect real bond orders in the viewer.
+        this.chemistry = perceiveChemistry(component.structure);
+
+        const predictBtn = document.getElementById('predict-types');
+        if (predictBtn) {
+            predictBtn.disabled = !this.chemistry.available;
+            predictBtn.title = this.chemistry.available
+                ? ''
+                : 'Bead-type prediction needs a structure with explicit hydrogen atoms '
+                + '(e.g. a GROMACS .gro file, or a PDB run through a protonation tool).';
+        }
+
+        const residueWarning = document.getElementById('multi-residue-warning');
+        if (residueWarning) residueWarning.hidden = countResidues(component.structure) <= 1;
+
+        if (this.chemistry.available) this._reflectBondOrders(component);
+    }
+
+    // Write perceiveChemistry's resolved bond orders back onto the actual
+    // NGL structure (BondProxy.bondOrder is directly settable) and rebuild
+    // representations so the viewer's ball+stick rendering shows real
+    // double/triple bonds instead of whatever NGL guessed from a bare
+    // PDB/GRO load (typically all-single).
+    _reflectBondOrders(component) {
+        const structure = component.structure;
+        structure.eachAtom((atom) => {
+            if (typeof atom.eachBond !== 'function') return;
+            atom.eachBond((bond) => {
+                const key = `${Math.min(bond.atomIndex1, bond.atomIndex2)}-${Math.max(bond.atomIndex1, bond.atomIndex2)}`;
+                const order = this.chemistry.bondOrders.get(key);
+                if (order !== undefined) bond.bondOrder = order;
+            });
+        });
+        component.rebuildRepresentations();
     }
 
     checkAtomNameUniqueness(structure) {
@@ -186,6 +226,7 @@ export class Visualization {
 
     async onPredictTypes() {
         const btn = document.getElementById('predict-types');
+        if (!this.chemistry || !this.chemistry.available) return;
         const originalText = btn.textContent;
         btn.disabled = true;
 
@@ -196,13 +237,8 @@ export class Visualization {
             const canonTable = buildCanonTable(RDKit);
 
             btn.textContent = 'Predicting…';
-            const hasExplicitH = structureHasHydrogens(
-                this.component && this.component.structure);
-            const { aromaticAtoms, bondOrders } = perceiveChemistry(
-                this.component && this.component.structure);
-
             for (const bead of this.collection.beads) {
-                this._predictOneBead(bead, RDKit, canonTable, hasExplicitH, aromaticAtoms, bondOrders);
+                this._predictOneBead(bead, RDKit, canonTable);
             }
 
             this.updateSelection();
@@ -220,10 +256,11 @@ export class Visualization {
         btn.disabled = false;
     }
 
-    _predictOneBead(bead, RDKit, canonTable, hasExplicitH, aromaticAtoms, bondOrders) {
+    _predictOneBead(bead, RDKit, canonTable) {
         if (bead.atoms.length === 0) return;
+        const chemistry = this.chemistry;
 
-        const smiles = fragmentToSmiles(bead.atoms, { aromaticAtoms, bondOrders });
+        const smiles = fragmentToSmiles(bead.atoms, chemistry);
         if (!smiles) return;
 
         const mol = RDKit.get_mol(smiles);
@@ -236,14 +273,19 @@ export class Visualization {
         const desc = JSON.parse(mol.get_descriptors());
         mol.delete();
 
-        const charge     = bead.atoms.reduce((s, a) => s + (a.formalCharge ?? 0), 0)
-                           + (bead.charge || 0);
+        // Charge for prediction comes ONLY from the backend-derived value
+        // (real bonding environment — see chemistry.js), never from the
+        // bead's manually-set Charge field. That field is a separate,
+        // user-editable export value; mixing it into prediction would mean
+        // the same number sometimes is and sometimes isn't double-counted
+        // depending on what the user already typed in.
+        const charge = bead.atoms.reduce((s, a) => s + (chemistry.charges.get(a.index) ?? 0), 0);
         const hasHalogen = bead.atoms.some(a =>
             ['F','CL','BR','I'].includes((a.element || '').toUpperCase()));
-        const inRing     = bead.atoms.some(a => aromaticAtoms.has(a.index));
+        const inRing     = bead.atoms.some(a => chemistry.aromaticAtoms.has(a.index));
         const heavyCount = bead.atoms.filter(a =>
             (a.element || 'C').toUpperCase() !== 'H').length;
-        const hDonors    = beadDonorCount(bead, hasExplicitH);
+        const hDonors    = beadDonorCount(bead, chemistry);
 
         // Table-first lookup. The AutoMartini table uses open-chain
         // aromatic SMILES ("cc", "cn", "ncs"…) for partial-ring fragments
@@ -260,10 +302,9 @@ export class Visualization {
         if (inRing) {
             const keys = new Set();
             for (const a of bead.atoms) {
-                if (!aromaticAtoms.has(a.index)) continue;
-                const k = fragmentToSmiles(bead.atoms, {
-                    aromaticNotation: true, aromaticAtoms, bondOrders,
-                    startIndex: a.index });
+                if (!chemistry.aromaticAtoms.has(a.index)) continue;
+                const k = fragmentToSmiles(bead.atoms, chemistry, {
+                    aromaticNotation: true, startIndex: a.index });
                 if (k) keys.add(k);
             }
             for (const k of keys) {
@@ -291,18 +332,23 @@ export class Visualization {
 
         bead.suggestedType = determineBeadType(
             { deltaF, charge, hDonors, hAcceptors, hasHalogen, inRing, heavyCount });
+
+        // Suggest updating the Charge field too when the bead's atoms imply
+        // a charge the user hasn't already set — e.g. a deprotonated
+        // carboxylate detected from explicit hydrogens. Only surfaced when
+        // it would actually change something.
+        bead.suggestedCharge = (charge !== 0 && charge !== (bead.charge || 0)) ? charge : null;
     }
 
     async onPredictBeadType(bead, btn) {
+        if (!this.chemistry || !this.chemistry.available) return;
         const originalText = btn.textContent;
         btn.disabled = true;
         btn.textContent = '…';
         try {
             const RDKit = await loadRDKit();
             const canonTable = buildCanonTable(RDKit);
-            const hasExplicitH = structureHasHydrogens(this.component && this.component.structure);
-            const { aromaticAtoms, bondOrders } = perceiveChemistry(this.component && this.component.structure);
-            this._predictOneBead(bead, RDKit, canonTable, hasExplicitH, aromaticAtoms, bondOrders);
+            this._predictOneBead(bead, RDKit, canonTable);
             this.updateSelection();
         } catch (err) {
             console.error('Per-bead prediction failed:', err);
@@ -582,7 +628,33 @@ export class Visualization {
         chargeNode.classList.add("bead-charge");
         chargeNode.oninput = (event) => { bead.charge = event.target.value; this.updateName(); };
         chargeNode.addEventListener("mousedown", e => e.stopPropagation());
-        addLabeledField("Charge", chargeNode);
+
+        const chargeWrap = document.createElement("div");
+        chargeWrap.classList.add("type-field-wrap");
+        if (bead.suggestedCharge != null) {
+            const chargeChip = document.createElement("button");
+            chargeChip.classList.add("bead-type-chip");
+            chargeChip.textContent = `→ ${bead.suggestedCharge}`;
+            chargeChip.title = "Click to apply suggested charge";
+            chargeChip.addEventListener("mousedown", e => e.stopPropagation());
+            chargeChip.onclick = (e) => {
+                e.stopPropagation();
+                bead.charge = bead.suggestedCharge;
+                chargeNode.value = bead.suggestedCharge;
+                this.updateName();
+            };
+            chargeWrap.appendChild(chargeChip);
+        }
+
+        const chargeFieldEl = document.createElement("div");
+        chargeFieldEl.classList.add("field");
+        const chargeLab = document.createElement("div");
+        chargeLab.classList.add("field-label");
+        chargeLab.textContent = "Charge";
+        chargeFieldEl.appendChild(chargeLab);
+        chargeFieldEl.appendChild(chargeNode);
+        chargeFieldEl.appendChild(chargeWrap);
+        fieldsNode.appendChild(chargeFieldEl);
 
         // DELETE + PREDICT button column
         const btnCol = document.createElement("div");

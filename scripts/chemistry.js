@@ -1,107 +1,312 @@
-const _ATOM_VALENCE = {C:4,N:3,O:2,S:2,P:3,F:1,CL:1,BR:1,I:1,H:1,SE:2,SI:4,B:3};
-const _ORGANIC = new Set(['B','C','N','O','P','S','F','CL','BR','I']);
+/* ===========================================================================
+   Chemistry perception — bond order, aromaticity, formal charge
+   ===========================================================================
+   ALGORITHM. PDB/GRO files carry atomic connectivity but no bond *order* —
+   the file never says whether a bond is single, double, or triple. This
+   module used to guess bond order from 3D bond length (a shortened bond
+   "looks like" a double bond). That guess is unreliable for ring systems:
+   resonance blurs aromatic bond lengths, and it had no concept of "this
+   heteroatom's lone pair completes the ring, it can never take a double
+   bond" — which produced real, confirmed bugs (a furan-type oxygen could
+   get assigned a double bond, making the fragment invalid).
 
-// Reference bond lengths (Å) as [single, double, triple]; null = not applicable.
-// Used to infer bond order from 3D geometry when the input file carries no
-// bond-order metadata (the common case for PDB/GRO). Keyed by element pair
-// sorted alphabetically.
-const _BOND_REF = {
-    'C-C': [1.54, 1.34, 1.20],
-    'C-N': [1.47, 1.29, 1.16],
-    'C-O': [1.43, 1.23, null],
-    'C-S': [1.82, 1.60, null],
-    'C-P': [1.84, 1.66, null],
-    'N-N': [1.45, 1.25, 1.10],
-    'N-O': [1.41, 1.21, null],
-    'N-S': [1.71, 1.54, null],
-    'N-P': [1.65, 1.55, null],
-    'O-O': [1.48, 1.21, null],
-    'O-P': [1.63, 1.50, null],
-    'O-S': [1.57, 1.44, null],
-    'P-S': [2.12, 1.95, null],
+   This rewrite instead ports the approach from xyz2mol (Kim & Kim, 2015,
+   https://doi.org/10.1002/bkcs.10334; reference implementation
+   https://github.com/jensengroup/xyz2mol): derive bond order and formal
+   charge from valence bookkeeping alone, given a structure with EXPLICIT
+   hydrogen atoms (see "why explicit hydrogens are required" below).
+
+     1. Every atom has a target valence (C=4, N=3, O=2, S=2, P=3, ... — see
+        _VALENCE_OPTIONS, which also lists higher options for hypervalent
+        atoms like phosphate P or sulfonate S).
+     2. "Deficit" = target valence − current bond-order sum (every bond,
+        including to real H atoms, starts at order 1). An atom with
+        deficit > 0 has room for one more bond.
+     3. A maximum matching (graph theory: the largest set of bonds with no
+        shared endpoint) is found among every bonded pair of deficit>0
+        atoms. Each matched bond becomes a double bond. This picks ALL the
+        double bonds in a ring simultaneously and consistently, rather than
+        guessing bond-by-bond from geometry. A furan/thiophene ring
+        oxygen/sulfur (two single ring bonds, no H) already has zero
+        deficit and is automatically excluded from the matching — not
+        through a hard-coded "exclude O/S" rule, simply because it has
+        nothing left to fill.
+     4. Triple bonds: a matched pair that still has exactly 1 unit of
+        deficit left on both sides, with no other eligible neighbour for
+        either atom, escalates to a triple bond (nitriles, alkynes).
+     5. Formal charge falls out of the same bookkeeping, via one formula
+        (see _formalCharge): charge = (element's neutral valence-electron
+        count) − 8 + (final bond-order sum, H included). This single
+        formula correctly derives −1 for a carboxylate oxygen, +1 for an
+        ammonium nitrogen, and 0 for both pyridine- and pyrrole-type ring
+        nitrogens — no element-specific exclusion list needed, because the
+        bookkeeping already knows how many bonds (real H included) each
+        atom ended up with.
+
+   WHY EXPLICIT HYDROGENS ARE REQUIRED. Without real hydrogen atoms in the
+   graph, a terminal heavy atom with one heavy neighbour is structurally
+   ambiguous: it could be a saturated −CH3/−NH2/−OH group (no deficit at
+   all) or genuinely unsaturated (a real double/triple bond) — pure valence
+   counting cannot tell these apart (verified empirically: a heavy-atom-only
+   nitrile fragment resolves to the WRONG bond getting the multiple bond).
+   With real hydrogens present this ambiguity never arises: a −CH3 carbon
+   already has all 4 bonds accounted for (3×H + 1 heavy) and is simply never
+   a matching candidate. So perceiveChemistry deliberately returns
+   `available: false` for structures with no explicit hydrogens, rather than
+   silently falling back to the same kind of geometry-based guessing that
+   produced the bug this rewrite fixes. Callers must check `available`
+   before using the result, and the UI should disable bead-type prediction
+   (and anything else depending on this) when it is false.
+   =========================================================================== */
+
+// Neutral free-atom valence electron count (periodic table group), used by
+// _formalCharge. Element symbols are upper-cased keys throughout this file.
+const _VALENCE_ELECTRONS = {
+    H: 1, B: 3, C: 4, N: 5, O: 6, F: 7, SI: 4, P: 5, S: 6, CL: 7, BR: 7, I: 7, SE: 6,
 };
 
-function _geometryBondOrder(elA, elB, dist) {
-    const ref = _BOND_REF[[elA, elB].sort().join('-')];
-    if (!ref || !dist) return { order: 1, single: ref ? ref[0] : Infinity };
-    let best = 1, bestErr = Infinity;
-    for (let o = 1; o <= 3; o++) {
-        const r = ref[o - 1];
-        if (r == null) continue;
-        const err = Math.abs(dist - r);
-        if (err < bestErr) { bestErr = err; best = o; }
-    }
-    return { order: best, single: ref[0] };
+// Candidate target valences per element, most-common first. An atom's actual
+// target is the smallest option that is still >= its raw bond count, so a
+// phosphate P (4-5 bonds) picks 5 instead of the default 3, etc.
+const _VALENCE_OPTIONS = {
+    H: [1], B: [3, 4], C: [4], N: [3, 4], O: [2, 1, 3],
+    F: [1], SI: [4], P: [3, 5], S: [2, 4, 6], CL: [1], BR: [1], I: [1], SE: [2, 4, 6],
+};
+
+const _ORGANIC = new Set(['B', 'C', 'N', 'O', 'P', 'S', 'F', 'CL', 'BR', 'I']);
+
+/**
+ * Formal charge implied by an atom's fully-resolved bond-order sum.
+ * charge = (neutral valence electrons) - 8 + (total bond order, H included).
+ * H, B, and hypervalent P/S (valence 5 / 6, their normal hypervalent state)
+ * get the same special-cased formula xyz2mol uses, since the general octet
+ * formula doesn't apply to them.
+ * @param {string} el - upper-cased element symbol
+ * @param {number} boSum - total resolved bond order (all bonds, H included)
+ * @returns {number} formal charge
+ */
+function _formalCharge(el, boSum) {
+    if (el === 'H') return 1 - boSum;
+    if (el === 'B') return 3 - boSum;
+    if (el === 'P' && boSum === 5) return 0;
+    if (el === 'S' && boSum === 6) return 0;
+    const ve = _VALENCE_ELECTRONS[el];
+    return ve === undefined ? 0 : ve - 8 + boSum;
 }
 
-// Perceive whole-molecule chemistry from geometry (and any NGL bond orders that
-// happen to be present). Returns:
-//   aromaticAtoms : Set of global atom indices in an aromatic ring
-//   bondOrders    : Map "a-b" (a<b) -> order, for NON-aromatic multiple bonds
-//
-// Bond orders come from comparing each heavy-heavy bond length to reference
-// single/double/triple lengths. Aromaticity = ring topology (prune + cycles)
-// where every ring member is sp2 (carries a shortened/multiple bond) or a
-// 2-connected heteroatom. Non-aromatic double/triple bonds are assigned greedily
-// (most-shortened first, at most one multiple bond per atom) so resonance/amide
-// carbons don't get an impossible double-double valence (C=O wins, C-N stays
-// single). Aromatic bonds are left to the per-fragment kekuliser.
-export function perceiveChemistry(structure) {
-    const aromaticAtoms = new Set();
-    const bondOrders = new Map();
-    if (!structure || typeof structure.eachAtom !== 'function') {
-        return { aromaticAtoms, bondOrders };
+/**
+ * Maximum matching on a small general graph, found by backtracking. Returns
+ * the largest possible set of edges with no shared endpoint. Small enough
+ * graphs (a handful to a few dozen atoms — single organic fragments/rings)
+ * make exhaustive backtracking fast; this is not meant for large graphs.
+ * @param {Array} nodes - node ids
+ * @param {Array<[any,any]>} edgeList - candidate edges between eligible nodes
+ * @returns {Array<[any,any]>} the matched pairs
+ */
+function _maxMatching(nodes, edgeList) {
+    const adj = new Map(nodes.map((n) => [n, []]));
+    for (const [a, b] of edgeList) { adj.get(a).push(b); adj.get(b).push(a); }
+
+    let best = [];
+    function backtrack(remaining, current) {
+        if (current.length > best.length) best = current.slice();
+        if (remaining.size === 0) return;
+        const node = remaining.values().next().value;
+        const withoutNode = new Set(remaining);
+        withoutNode.delete(node);
+        for (const nb of adj.get(node)) {
+            if (!withoutNode.has(nb)) continue;
+            const next = new Set(withoutNode);
+            next.delete(nb);
+            backtrack(next, [...current, [node, nb]]);
+        }
+        backtrack(withoutNode, current); // leave `node` unmatched
+    }
+    backtrack(new Set(nodes), []);
+    return best;
+}
+
+/**
+ * Core valence-budget + matching engine (see the module-level algorithm
+ * comment). Resolves bond orders for one connected component of a molecular
+ * graph that includes explicit hydrogen atoms.
+ * @param {Map<number,string>} elements - atomIdx -> upper-cased element
+ * @param {Map<number,number>} knownCharge - atomIdx -> already-known formal
+ *   charge (e.g. from the file), default 0 for anything absent
+ * @param {Array<[number,number]>} edges - bonded atom-index pairs
+ * @returns {{ order: Map<string,number>, charge: Map<number,number> }}
+ *   order keyed "min-max", charge per atom index (all bonds counted, H
+ *   included — callers needing "real H count" should count H-element
+ *   neighbours directly, it's already explicit in the input graph).
+ */
+function _resolveBondOrders(elements, knownCharge, edges) {
+    const adj = new Map();
+    for (const idx of elements.keys()) adj.set(idx, []);
+    const order = new Map();
+    for (const [a, b] of edges) {
+        order.set(`${Math.min(a, b)}-${Math.max(a, b)}`, 1);
+        adj.get(a).push(b);
+        adj.get(b).push(a);
     }
 
-    // Element + position per atom. NGL reuses one AtomProxy during iteration, so
-    // read values into plain objects immediately rather than storing the proxy.
-    const element = new Map();
-    const pos = new Map();
-    structure.eachAtom(a => {
-        element.set(a.index, (a.element || 'C').toUpperCase());
-        const v = typeof a.positionToVector3 === 'function'
-            ? a.positionToVector3() : { x: a.x, y: a.y, z: a.z };
-        pos.set(a.index, { x: v.x, y: v.y, z: v.z });
-    });
-
-    // Heavy-atom graph + per-bond geometry classification (each bond once).
-    const adj = new Map();
-    const bonds = [];          // { a, b, order, single, dist, aromaticNGL }
-    const seen = new Set();
-    const sp2 = new Set();
-    const link = (u, v) => {
-        if (!adj.has(u)) adj.set(u, new Set());
-        adj.get(u).add(v);
+    const boSum = (idx) => {
+        let s = 0;
+        for (const nb of adj.get(idx)) s += order.get(`${Math.min(idx, nb)}-${Math.max(idx, nb)}`);
+        return s;
     };
-    structure.eachAtom(atom => {
+    const targetValence = (idx) => {
+        const el = elements.get(idx);
+        const charge = knownCharge.get(idx) || 0;
+        const options = _VALENCE_OPTIONS[el] || [4];
+        const rawDegree = adj.get(idx).length;
+        const base = options.find((v) => v >= rawDegree) ?? options[options.length - 1];
+        return base + charge;
+    };
+    const deficit = (idx) => targetValence(idx) - boSum(idx);
+
+    // Single matching round: every atom with remaining valence budget pairs
+    // with at most one equally-eligible neighbour, becoming a double bond.
+    const eligible = [...elements.keys()].filter((idx) => deficit(idx) > 0);
+    const eligibleSet = new Set(eligible);
+    const pairEdges = edges.filter(([a, b]) => eligibleSet.has(a) && eligibleSet.has(b));
+    const matching = _maxMatching(eligible, pairEdges);
+    for (const [a, b] of matching) {
+        const key = `${Math.min(a, b)}-${Math.max(a, b)}`;
+        order.set(key, order.get(key) + 1);
+    }
+
+    // Triple-bond escalation: a matched pair that's each still short by
+    // exactly 1, with no other eligible neighbour on either side, can only
+    // mean a triple bond (nitriles, alkynes) — there's nowhere else for
+    // that remaining deficit to go.
+    for (const [a, b] of matching) {
+        if (deficit(a) === 1 && deficit(b) === 1) {
+            const aOthers = adj.get(a).filter((n) => n !== b && deficit(n) > 0);
+            const bOthers = adj.get(b).filter((n) => n !== a && deficit(n) > 0);
+            if (aOthers.length === 0 && bOthers.length === 0) {
+                const key = `${Math.min(a, b)}-${Math.max(a, b)}`;
+                order.set(key, order.get(key) + 1);
+            }
+        }
+    }
+
+    const charge = new Map();
+    for (const idx of elements.keys()) charge.set(idx, _formalCharge(elements.get(idx), boSum(idx)));
+
+    return { order, charge };
+}
+
+/**
+ * Find each connected component of a graph (Set of node ids per component).
+ * Bond-order resolution runs independently per component, so unrelated
+ * molecules sharing one file (e.g. a ligand plus a separately-listed water)
+ * never interfere with each other.
+ */
+function _connectedComponents(nodes, adj) {
+    const seen = new Set();
+    const components = [];
+    for (const start of nodes) {
+        if (seen.has(start)) continue;
+        const comp = new Set([start]);
+        seen.add(start);
+        const queue = [start];
+        while (queue.length) {
+            const u = queue.shift();
+            for (const v of (adj.get(u) || [])) {
+                if (!seen.has(v)) { seen.add(v); comp.add(v); queue.push(v); }
+            }
+        }
+        components.push(comp);
+    }
+    return components;
+}
+
+/**
+ * Perceive whole-molecule chemistry: bond orders, ring/aromaticity, and
+ * formal charge, from connectivity + explicit hydrogens alone (see the
+ * module-level comment for the algorithm and why explicit H is required).
+ *
+ * Returns `{ available: false }` when the structure has no explicit
+ * hydrogen atoms — callers MUST check `available` before using anything
+ * else in the result, and should disable any feature that depends on this
+ * (bead-type prediction, whole-molecule SMILES, viewer bond reflection)
+ * rather than silently falling back to a guess.
+ *
+ * @param {object} structure - NGL-style structure (eachAtom/getAtomProxy)
+ * @returns {{
+ *   available: boolean,
+ *   ringAtoms: Set<number>,        // every atom in any ring, aromatic or not
+ *   aromaticAtoms: Set<number>,    // ring atoms in a fully-resolved alternating system
+ *   bondOrders: Map<string,number>,// "minIdx-maxIdx" -> order, ALL bonds
+ *   charges: Map<number,number>,   // atomIdx -> derived formal charge
+ *   hNeighbors: Map<number,number>,// atomIdx -> count of explicit H neighbours
+ * }}
+ */
+export function perceiveChemistry(structure) {
+    const empty = {
+        available: false, ringAtoms: new Set(), aromaticAtoms: new Set(),
+        bondOrders: new Map(), charges: new Map(), hNeighbors: new Map(),
+    };
+    if (!structure || typeof structure.eachAtom !== 'function') return empty;
+    if (!structureHasHydrogens(structure)) return empty;
+
+    const element = new Map();
+    structure.eachAtom((a) => element.set(a.index, (a.element || 'C').toUpperCase()));
+
+    // Full graph, hydrogens included as real nodes — see module comment.
+    const adj = new Map();
+    const edgeSeen = new Set();
+    const edges = [];
+    const link = (u, v) => { if (!adj.has(u)) adj.set(u, []); adj.get(u).push(v); };
+    structure.eachAtom((atom) => {
         const idx = atom.index;
-        if (element.get(idx) === 'H') return;
-        if (atom.aromatic) sp2.add(idx);  // trust NGL's flag when present
         if (typeof atom.eachBond !== 'function') return;
-        atom.eachBond(bond => {
+        atom.eachBond((bond) => {
             const i1 = bond.atomIndex1, i2 = bond.atomIndex2;
             const other = i1 === idx ? i2 : (i2 === idx ? i1 : -1);
-            if (other < 0 || element.get(other) === 'H') return;
-            link(idx, other); link(other, idx);
+            if (other < 0) return;
             const a = Math.min(idx, other), b = Math.max(idx, other);
             const key = `${a}-${b}`;
-            if (seen.has(key)) return;
-            seen.add(key);
-            const pa = pos.get(a), pb = pos.get(b);
-            const dist = Math.hypot(pa.x - pb.x, pa.y - pb.y, pa.z - pb.z);
-            let { order, single } = _geometryBondOrder(element.get(a), element.get(b), dist);
-            // Respect explicit NGL bond orders when the file does provide them.
-            const ngl = bond.bondOrder;
-            if (ngl === 2 || ngl === 3) order = Math.max(order, ngl);
-            const aromaticNGL = ngl === 1.5 || (ngl >= 4 && ngl < 100);
-            if (order >= 2 || aromaticNGL) { sp2.add(a); sp2.add(b); }
-            bonds.push({ a, b, order, single, dist, aromaticNGL });
+            if (edgeSeen.has(key)) return;
+            edgeSeen.add(key);
+            edges.push([a, b]);
+            link(a, b); link(b, a);
         });
     });
 
-    // Prune terminal chains: atoms with degree <= 1 cannot be in a ring.
-    const degree = new Map();
-    for (const [k, s] of adj) degree.set(k, s.size);
+    // Resolve bond orders + charge per connected component independently.
+    const bondOrders = new Map();
+    const charges = new Map();
+    const knownCharge = new Map();
+    structure.eachAtom((a) => { if (a.formalCharge) knownCharge.set(a.index, a.formalCharge); });
+    for (const comp of _connectedComponents([...element.keys()], adj)) {
+        const compElements = new Map([...element].filter(([idx]) => comp.has(idx)));
+        const compEdges = edges.filter(([a, b]) => comp.has(a));
+        const { order, charge } = _resolveBondOrders(compElements, knownCharge, compEdges);
+        for (const [k, v] of order) bondOrders.set(k, v);
+        for (const [k, v] of charge) charges.set(k, v);
+    }
+
+    const hNeighbors = new Map();
+    for (const idx of element.keys()) {
+        if (element.get(idx) === 'H') continue;
+        let count = 0;
+        for (const nb of (adj.get(idx) || [])) if (element.get(nb) === 'H') count += 1;
+        hNeighbors.set(idx, count);
+    }
+
+    // Ring detection on the heavy-atom subgraph only (BFS spanning tree,
+    // handles fused rings correctly — every non-tree edge directly gives a
+    // fundamental cycle via its tree-path LCA, unlike DFS back-edges, which
+    // miss cycles in polycyclic systems where the closing atom of a second
+    // ring is already marked "done" by the time the first ring's DFS
+    // reaches it).
+    const heavyAdj = new Map();
+    for (const idx of element.keys()) {
+        if (element.get(idx) === 'H') continue;
+        heavyAdj.set(idx, (adj.get(idx) || []).filter((n) => element.get(n) !== 'H'));
+    }
+    const degree = new Map([...heavyAdj].map(([k, v]) => [k, v.length]));
     const removed = new Set();
     let changed = true;
     while (changed) {
@@ -110,21 +315,15 @@ export function perceiveChemistry(structure) {
             if (removed.has(k) || d > 1) continue;
             removed.add(k);
             changed = true;
-            for (const nb of adj.get(k)) {
-                if (!removed.has(nb)) degree.set(nb, degree.get(nb) - 1);
-            }
+            for (const nb of heavyAdj.get(k)) if (!removed.has(nb)) degree.set(nb, degree.get(nb) - 1);
         }
     }
     const ringAdj = new Map();
-    for (const k of adj.keys()) {
+    for (const k of heavyAdj.keys()) {
         if (removed.has(k)) continue;
-        ringAdj.set(k, [...adj.get(k)].filter(n => !removed.has(n)));
+        ringAdj.set(k, heavyAdj.get(k).filter((n) => !removed.has(n)));
     }
 
-    // Fundamental cycles via BFS spanning tree (handles fused rings correctly).
-    // DFS back-edge detection misses cycles in polycyclic systems where the
-    // closing atom of a secondary ring is already marked "done" — the BFS
-    // approach finds every ring by treating each non-tree edge as a cycle.
     const cycles = [];
     {
         const bfsParent = new Map();
@@ -136,15 +335,11 @@ export function perceiveChemistry(structure) {
             let qi = 0;
             while (qi < bfsQ.length) {
                 const u = bfsQ[qi++];
-                for (const v of ringAdj.get(u)) {
-                    if (!bfsParent.has(v)) { bfsParent.set(v, u); bfsQ.push(v); }
-                }
+                for (const v of ringAdj.get(u)) if (!bfsParent.has(v)) { bfsParent.set(v, u); bfsQ.push(v); }
             }
         }
         const treeSet = new Set();
-        for (const [n, p] of bfsParent) {
-            if (p >= 0) treeSet.add(`${Math.min(n, p)}-${Math.max(n, p)}`);
-        }
+        for (const [n, p] of bfsParent) if (p >= 0) treeSet.add(`${Math.min(n, p)}-${Math.max(n, p)}`);
         const seenEdge = new Set();
         for (const u of ringAdj.keys()) {
             for (const v of ringAdj.get(u)) {
@@ -152,143 +347,100 @@ export function perceiveChemistry(structure) {
                 const ekey = `${u}-${v}`;
                 if (treeSet.has(ekey) || seenEdge.has(ekey)) continue;
                 seenEdge.add(ekey);
-                // Non-tree edge u-v: find paths to LCA in spanning tree.
                 const pathU = [], pathV = [];
                 for (let x = u; x >= 0; x = bfsParent.get(x) ?? -1) pathU.push(x);
                 for (let x = v; x >= 0; x = bfsParent.get(x) ?? -1) pathV.push(x);
                 const setU = new Map(pathU.map((n, i) => [n, i]));
                 let lca = -1, vIdx = -1;
-                for (let i = 0; i < pathV.length; i++) {
-                    if (setU.has(pathV[i])) { lca = pathV[i]; vIdx = i; break; }
-                }
+                for (let i = 0; i < pathV.length; i++) if (setU.has(pathV[i])) { lca = pathV[i]; vIdx = i; break; }
                 if (lca < 0) continue;
-                const cycle = [
-                    ...pathU.slice(0, setU.get(lca) + 1),
-                    ...pathV.slice(0, vIdx).reverse(),
-                ];
+                const cycle = [...pathU.slice(0, setU.get(lca) + 1), ...pathV.slice(0, vIdx).reverse()];
                 if (cycle.length >= 3) cycles.push(cycle);
             }
         }
     }
 
-    const isHetero = idx => ['N', 'O', 'S'].includes(element.get(idx));
+    const ringAtoms = new Set();
+    const aromaticAtoms = new Set();
+    const isHetero = (idx) => ['N', 'O', 'S', 'SE'].includes(element.get(idx));
     for (const cyc of cycles) {
         if (cyc.length < 4 || cyc.length > 7) continue;
-        if (cyc.every(idx => sp2.has(idx) || isHetero(idx))) {
-            for (const idx of cyc) aromaticAtoms.add(idx);
-        }
+        for (const idx of cyc) ringAtoms.add(idx);
+
+        // Aromatic iff every ring member either has a resolved double bond to
+        // ANOTHER ring member, or is a heteroatom with no double bond at all
+        // (its lone pair completes the ring instead) — a direct read of the
+        // already-resolved bond pattern, not a separate geometric guess.
+        const cycSet = new Set(cyc);
+        const fullyConjugated = cyc.every((idx) => {
+            const hasRingDoubleBond = (heavyAdj.get(idx) || []).some((nb) => {
+                if (!cycSet.has(nb)) return false;
+                const key = `${Math.min(idx, nb)}-${Math.max(idx, nb)}`;
+                return bondOrders.get(key) === 2;
+            });
+            if (hasRingDoubleBond) return true;
+            return isHetero(idx) && !(heavyAdj.get(idx) || []).some((nb) => {
+                const key = `${Math.min(idx, nb)}-${Math.max(idx, nb)}`;
+                return bondOrders.get(key) === 2;
+            });
+        });
+        if (fullyConjugated) for (const idx of cyc) aromaticAtoms.add(idx);
     }
 
-    // Assign non-aromatic multiple bonds greedily: most-shortened first, at most
-    // one per atom. Aromatic bonds are excluded — kekulisation handles those.
-    // The one-per-atom cap stops resonance/amide carbons getting an impossible
-    // double-double valence: e.g. for an amide the C=O (more shortened) wins and
-    // the C–N is left single.
-    const ranked = bonds
-        .filter(bd => bd.order >= 2 && !(aromaticAtoms.has(bd.a) && aromaticAtoms.has(bd.b)))
-        .sort((x, y) => (y.single - y.dist) - (x.single - x.dist));
-    const usedMul = new Set();
-    for (const bd of ranked) {
-        if (usedMul.has(bd.a) || usedMul.has(bd.b)) continue;
-        bondOrders.set(`${bd.a}-${bd.b}`, bd.order);
-        usedMul.add(bd.a); usedMul.add(bd.b);
-    }
-    return { aromaticAtoms, bondOrders };
+    return { available: true, ringAtoms, aromaticAtoms, bondOrders, charges, hNeighbors };
 }
 
-// aromaticNotation=true: write aromatic atoms as lowercase (c, n, o…), skip
-// kekulization. Used to generate AutoMartini-style lookup keys ("cc", "ccc"…)
-// that match open-chain aromatic entries in the table. Never feed this output
-// to RDKit — it rejects open-chain aromatic SMILES.
-//
-// aromaticAtoms: optional Set of global atom indices known to be aromatic (from
-// perceiveChemistry). When provided it overrides the local flag/bond-order
-// heuristic, which is unreliable for Kekulé-form input.
-// bondOrders: optional Map "a-b"(a<b) -> order for non-aromatic multiple bonds
-// (from perceiveChemistry's geometry inference). Overrides NGL bond orders so
-// carbonyls/imines/alkenes render correctly even from PDB/GRO without bond data.
-export function fragmentToSmiles(beadAtoms,
-        { aromaticNotation = false, aromaticAtoms = null, bondOrders = null,
-          startIndex = null } = {}) {
-    const heavy = beadAtoms.filter(a => (a.element || 'C').toUpperCase() !== 'H');
-    if (heavy.length === 0) return null;
+/**
+ * Build a SMILES string for a set of atoms, given the whole-molecule
+ * chemistry already resolved by perceiveChemistry. Used both for one bead's
+ * fragment (the common case — bonds leaving the fragment are capped with
+ * hydrogen, same as AutoMartini's fragment treatment) and, by passing every
+ * heavy atom in the structure, for a whole-molecule SMILES.
+ *
+ * aromaticNotation=true writes aromatic atoms lowercase and skips Kekulé
+ * bond symbols, for matching AutoMartini's open-chain aromatic table keys
+ * ("cc", "ccc", ...). Never feed that output to RDKit — it rejects
+ * open-chain aromatic SMILES; aromaticNotation=false (the default) produces
+ * a normal Kekulé SMILES RDKit can parse.
+ *
+ * @param {Array} beadAtoms - atom proxies to include (heavy atoms only;
+ *   hydrogens are represented implicitly via chemistry.hNeighbors)
+ * @param {object} chemistry - perceiveChemistry's result (must have
+ *   `available: true`)
+ * @param {object} [opts]
+ * @param {boolean} [opts.aromaticNotation]
+ * @param {number} [opts.startIndex] - atom index to start the SMILES from
+ * @returns {string|null}
+ */
+export function fragmentToSmiles(beadAtoms, chemistry, { aromaticNotation = false, startIndex = null } = {}) {
+    const heavy = beadAtoms.filter((a) => (a.element || 'C').toUpperCase() !== 'H');
+    if (heavy.length === 0 || !chemistry || !chemistry.available) return null;
 
-    const atomSet = new Set(heavy.map(a => a.index));
+    const atomSet = new Set(heavy.map((a) => a.index));
+    const { bondOrders, charges, hNeighbors, aromaticAtoms } = chemistry;
 
-    // Determine which bead atoms are aromatic. Prefer the caller-supplied set
-    // (whole-molecule ring perception); otherwise fall back to the local
-    // flag/bond-order heuristic (works only when NGL encodes aromaticity).
-    const aromaticSet = new Set();
-    if (aromaticAtoms) {
-        for (const atom of heavy) {
-            if (aromaticAtoms.has(atom.index)) aromaticSet.add(atom.index);
-        }
-    } else {
-        for (const atom of heavy) {
-            if (atom.aromatic) { aromaticSet.add(atom.index); continue; }
-            if (typeof atom.eachBond !== 'function') continue;
-            let found = false;
-            atom.eachBond(b => {
-                const bo = b.bondOrder;
-                if (bo === 1.5 || (bo >= 4 && bo < 100)) found = true;
-            });
-            if (found) aromaticSet.add(atom.index);
-        }
-    }
-
-    // Collect each internal bond once (undirected), flagging aromatic bonds.
-    // NGL may encode aromaticity as bond order 4 or 1.5, or only via the per-atom
-    // aromatic flag, so check both.
-    const edges = new Map(); // "min-max" -> { a, b, order, aromatic }
+    // Collect each internal bond once, reading its already-resolved order.
+    const edges = new Map();
     for (const atom of heavy) {
         if (typeof atom.eachBond !== 'function') continue;
-        atom.eachBond(bond => {
-            // Identify the other endpoint robustly: NGL may order atomIndex1/2
-            // with the lower index first (not necessarily the current atom first).
+        atom.eachBond((bond) => {
             const i1 = bond.atomIndex1, i2 = bond.atomIndex2;
             const otherIdx = i1 === atom.index ? i2 : (i2 === atom.index ? i1 : -1);
             if (otherIdx < 0 || !atomSet.has(otherIdx)) return;
-            const a = Math.min(atom.index, otherIdx);
-            const b = Math.max(atom.index, otherIdx);
+            const a = Math.min(atom.index, otherIdx), b = Math.max(atom.index, otherIdx);
             const key = `${a}-${b}`;
             if (edges.has(key)) return;
-            const raw = bond.bondOrder || 1;
-            const aromatic = raw >= 4 || raw === 1.5
-                || (aromaticSet.has(a) && aromaticSet.has(b));
-            // Bond order: aromatic bonds get kekulised below; otherwise prefer
-            // the geometry-inferred order, falling back to NGL's bond order.
-            let order;
-            if (aromatic) order = 1;
-            else if (bondOrders && bondOrders.has(key)) order = bondOrders.get(key);
-            else order = Math.round(raw);
+            const aromatic = aromaticAtoms.has(a) && aromaticAtoms.has(b);
+            const order = aromaticNotation && aromatic ? 1 : (bondOrders.get(key) ?? 1);
             edges.set(key, { a, b, order, aromatic });
         });
     }
 
-    // Kekulise aromatic bonds (Kekulé mode only): a greedy maximum matching
-    // turns alternating aromatic bonds into double bonds so sp2 atoms keep
-    // their unsaturation. Skipped in aromaticNotation mode where aromatic atoms
-    // are written lowercase and bonds are implicit (order stays 1).
-    if (!aromaticNotation) {
-        const doubled = new Set();
-        for (const edge of edges.values()) {
-            if (edge.aromatic && !doubled.has(edge.a) && !doubled.has(edge.b)) {
-                edge.order = 2;
-                doubled.add(edge.a);
-                doubled.add(edge.b);
-            }
-        }
-    }
-
-    // Per-atom data: internal bonds and implicit H count. Any valence not used by
-    // an internal bond is capped with hydrogen (external heavy bonds and original
-    // explicit hydrogens alike).
     const data = new Map();
     for (const atom of heavy) {
         data.set(atom.index, {
             el: (atom.element || 'C').toUpperCase(),
-            charge: atom.formalCharge ?? 0,
-            hCount: 0,
+            charge: charges.get(atom.index) ?? 0,
             internalBonds: [],
         });
     }
@@ -299,17 +451,31 @@ export function fragmentToSmiles(beadAtoms,
         intSum.set(edge.a, (intSum.get(edge.a) || 0) + edge.order);
         intSum.set(edge.b, (intSum.get(edge.b) || 0) + edge.order);
     }
+    // hCount = real explicit H neighbours, plus one per bond leaving the
+    // fragment to ANOTHER HEAVY atom (capped as hydrogen, same
+    // fragment-capping convention as before — explicit H neighbours are
+    // already counted via hNeighbors and must not be double-counted here).
     for (const atom of heavy) {
         const d = data.get(atom.index);
-        const baseVal = _ATOM_VALENCE[d.el] ?? 4;
-        d.hCount = Math.max(0, baseVal + d.charge - (intSum.get(atom.index) || 0));
+        const realH = hNeighbors.get(atom.index) ?? 0;
+        let externalHeavyBonds = 0;
+        if (typeof atom.eachBond === 'function') {
+            const structure = atom.structure;
+            atom.eachBond((bond) => {
+                const i1 = bond.atomIndex1, i2 = bond.atomIndex2;
+                const otherIdx = i1 === atom.index ? i2 : (i2 === atom.index ? i1 : -1);
+                if (otherIdx < 0 || atomSet.has(otherIdx)) return;
+                const other = structure.getAtomProxy(otherIdx);
+                if ((other.element || '').toUpperCase() !== 'H') externalHeavyBonds += 1;
+            });
+        }
+        d.hCount = realH + externalHeavyBonds;
     }
 
-    // DFS to find ring-closure back-edges and assign ring-closure digits
     const visited = new Set();
     const inStack = new Set();
     const seenEdges = new Set();
-    const ringClosures = new Map(); // atomIdx -> [{digit, writeBond}]
+    const ringClosures = new Map();
     let digitCounter = 1;
 
     function findBackEdges(idx, parentIdx) {
@@ -321,7 +487,7 @@ export function fragmentToSmiles(beadAtoms,
             if (inStack.has(toIdx)) {
                 const digit = digitCounter++;
                 if (!ringClosures.has(toIdx)) ringClosures.set(toIdx, []);
-                if (!ringClosures.has(idx))   ringClosures.set(idx,   []);
+                if (!ringClosures.has(idx)) ringClosures.set(idx, []);
                 ringClosures.get(toIdx).push({ digit, writeBond: false });
                 ringClosures.get(idx).push({ digit, order, writeBond: true });
             } else if (!visited.has(toIdx)) {
@@ -331,8 +497,7 @@ export function fragmentToSmiles(beadAtoms,
         inStack.delete(idx);
     }
 
-    const startIdx = (startIndex != null && atomSet.has(startIndex))
-        ? startIndex : heavy[0].index;
+    const startIdx = (startIndex != null && atomSet.has(startIndex)) ? startIndex : heavy[0].index;
     findBackEdges(startIdx, -1);
     visited.clear();
 
@@ -342,17 +507,12 @@ export function fragmentToSmiles(beadAtoms,
 
     function atomToken(idx) {
         const d = data.get(idx);
-        if (aromaticNotation && aromaticSet.has(idx)) {
+        if (aromaticNotation && aromaticAtoms.has(idx)) {
             return d.el.charAt(0).toLowerCase() + d.el.slice(1).toLowerCase();
         }
-        const sym = d.el === 'CL' ? 'Cl' : d.el === 'BR' ? 'Br'
-                  : d.el.charAt(0) + d.el.slice(1).toLowerCase();
-
-        // hCount is computed from the same valence table SMILES uses for implicit H,
-        // so brackets are never needed just because hCount > 0 for organic atoms.
+        const sym = d.el === 'CL' ? 'Cl' : d.el === 'BR' ? 'Br' : d.el.charAt(0) + d.el.slice(1).toLowerCase();
         const needsBracket = d.charge !== 0 || !_ORGANIC.has(d.el);
         if (!needsBracket) return sym;
-
         let inner = sym;
         if (d.hCount === 1) inner += 'H';
         else if (d.hCount > 1) inner += `H${d.hCount}`;
@@ -371,85 +531,75 @@ export function fragmentToSmiles(beadAtoms,
     function dfs(idx) {
         visited.add(idx);
         let smi = atomToken(idx) + closureSuffix(idx);
-
-        const children = (data.get(idx)?.internalBonds ?? [])
-            .filter(({ toIdx }) => !visited.has(toIdx));
-
+        const children = (data.get(idx)?.internalBonds ?? []).filter(({ toIdx }) => !visited.has(toIdx));
         if (children.length === 0) return smi;
-        // Branches must immediately follow the parent atom. Write every child
-        // except the last as a parenthesised branch, then the last child inline
-        // as the main-chain continuation. Children visited during a sibling's
-        // recursion (rings) are skipped; their ring-closure digit is emitted via
-        // closureSuffix instead.
         for (let i = 0; i < children.length - 1; i++) {
             const { toIdx, order } = children[i];
             if (visited.has(toIdx)) continue;
             smi += `(${bondChar(order)}${dfs(toIdx)})`;
         }
         const last = children[children.length - 1];
-        if (!visited.has(last.toIdx)) {
-            smi += bondChar(last.order) + dfs(last.toIdx);
-        }
+        if (!visited.has(last.toIdx)) smi += bondChar(last.order) + dfs(last.toIdx);
         return smi;
     }
 
     return dfs(startIdx);
 }
 
-const _HETERO_VALENCE = { N: 3, O: 2, S: 2 };
-
-// Number of hydrogens actually attached to a heteroatom in the real structure.
-// hasExplicitH: whether the loaded molecule carries explicit hydrogen atoms.
-export function realHydrogenCount(atom, hasExplicitH) {
-    const el = (atom.element || '').toUpperCase();
-    const baseVal = _HETERO_VALENCE[el];
-    if (baseVal === undefined) return 0;
-
-    const charge = atom.formalCharge ?? 0;
-    const structure = atom.structure;
-    let explicitH = 0;
-    let heavySum = 0;
-    let aromaticRingBonds = 0;
-
-    if (typeof atom.eachBond === 'function') {
-        atom.eachBond((bond) => {
-            const otherIdx = bond.atomIndex1 === atom.index
-                ? bond.atomIndex2 : bond.atomIndex1;
-            const other = structure.getAtomProxy(otherIdx);
-            if ((other.element || '').toUpperCase() === 'H') { explicitH += 1; return; }
-            let order = bond.bondOrder || 1;
-            // Treat as an aromatic ring bond if both atoms are flagged aromatic,
-            // OR the bond order encodes aromaticity (NGL may use 4 or 1.5).
-            const aromatic = (!!atom.aromatic && !!other.aromatic)
-                || order >= 4 || order === 1.5;
-            if (aromatic) { aromaticRingBonds += 1; order = 1; }
-            heavySum += order;
-        });
-    }
-
-    // If the molecule carries explicit hydrogens, the count of H neighbours is
-    // definitive — even when it is zero (e.g. a pyridine-type aromatic N).
-    if (hasExplicitH) return explicitH;
-
-    // No explicit H: estimate implicit H from valence. An aromatic ring atom
-    // consumes one extra valence unit beyond its (normalised) single ring bonds,
-    // so pyridine N -> 0 H and benzene C -> 1 H. (A pyrrole-type N-H cannot be
-    // told apart from a pyridine N without explicit hydrogens.)
-    let used = heavySum;
-    if (aromaticRingBonds >= 2) used += 1;
-    return Math.max(0, baseVal + charge - used);
+/**
+ * Whole-molecule SMILES, built from every heavy atom in the structure using
+ * the same resolved chemistry as the per-bead fragments. Returns null when
+ * `chemistry.available` is false (no explicit hydrogens) or the structure
+ * has more than one connected component (use per-residue/fragment calls
+ * instead for multi-molecule files).
+ * @param {object} structure - NGL-style structure
+ * @param {object} chemistry - perceiveChemistry's result
+ * @returns {string|null}
+ */
+export function moleculeToSmiles(structure, chemistry) {
+    if (!structure || !chemistry || !chemistry.available) return null;
+    const heavy = [];
+    structure.eachAtom((a) => { if ((a.element || 'C').toUpperCase() !== 'H') heavy.push(a); });
+    return fragmentToSmiles(heavy, chemistry);
 }
 
-export function beadDonorCount(bead, hasExplicitH) {
+/**
+ * Number of H-bond donor atoms (N/O/S with at least one real bonded
+ * hydrogen) in a bead, read directly from perceiveChemistry's hNeighbors —
+ * always the real, explicit count, since prediction is gated on explicit
+ * hydrogens being present in the first place.
+ * @param {object} bead - has an `atoms` array of atom proxies
+ * @param {object} chemistry - perceiveChemistry's result
+ * @returns {number}
+ */
+export function beadDonorCount(bead, chemistry) {
     let donors = 0;
     for (const atom of bead.atoms) {
         const el = (atom.element || '').toUpperCase();
-        if ((el === 'N' || el === 'O' || el === 'S')
-            && realHydrogenCount(atom, hasExplicitH) > 0) {
+        if ((el === 'N' || el === 'O' || el === 'S') && (chemistry.hNeighbors.get(atom.index) ?? 0) > 0) {
             donors += 1;
         }
     }
     return donors;
+}
+
+/**
+ * Count distinct residues in a structure (by resno+chain, falling back to
+ * resno alone), for surfacing a "this structure has more than one residue"
+ * warning. Loaded files are expected to be a single molecule for mapping
+ * purposes; multiple residues usually means solvent, ions, or multiple
+ * copies came along with the structure.
+ * @param {object} structure - NGL-style structure
+ * @returns {number}
+ */
+export function countResidues(structure) {
+    const seen = new Set();
+    if (structure && typeof structure.eachAtom === 'function') {
+        structure.eachAtom((atom) => {
+            seen.add(`${atom.chainname ?? ''}/${atom.resno}/${atom.resname ?? ''}`);
+        });
+    }
+    return seen.size;
 }
 
 export function structureHasHydrogens(structure) {

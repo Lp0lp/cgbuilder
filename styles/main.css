@@ -638,6 +638,10 @@ details[open] .atom-list-summary::before {
     font-weight: 500;
 }
 
+#multi-residue-warning {
+    margin: 8px 12px 0;
+}
+
 /* ================================
    INFO BOX + FOOTNOTE
 ================================ */
