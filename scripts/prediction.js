@@ -101,6 +101,42 @@ const FRAG_DELTA_F = {
     "cccO":-4.2,
 };
 
+/* Common charged ions/functional groups — NOT from AutoMartini's table, our
+   own additions, kept separate from FRAG_DELTA_F above so the verbatim
+   AutoMartini data stays traceable.
+
+   deltaF computed via Crippen logP collapses charged fragments to the same
+   Q1/SQ1/TQ1 tier almost regardless of group (it's not calibrated for ionic
+   species at all — verified empirically). These entries sidestep that:
+   each deltaF value is chosen to land EXACTLY on the reference value of the
+   plain Q-tier (size prefix handled separately, same dynamic logic as every
+   other bead) that the Martini 3 SI lists for that ion/group, per its
+   "Ions" table. Several of these are genuinely n/p-labelled in the SI
+   (e.g. carboxylate -> Q5n, ammonium -> Q5p); the polarity label is
+   dropped here since DELTA_F has no n/p reference values and
+   determineBeadType doesn't search n/p candidates — landing on the right
+   plain tier is a closer prediction than collapsing to Q1, and the user can
+   add the label by hand. Chain-length variants are enumerated explicitly
+   (not pattern-matched) since Martini beads only ever cover ~2-5 heavy
+   atoms, a small, fully enumerable space. */
+const ION_DELTA_F = {
+    "[NH4+]":-17.0,
+    "C[NH3+]":-16.3, "CC[NH3+]":-18.2, "CCC[NH3+]":-18.8, "CCCC[NH3+]":-18.8,
+    "C[NH2+]C":-18.0, "CC[NH2+]C":-17.4, "CCC[NH2+]C":-17.4,
+    "C[NH+](C)C":-14.3, "CC[NH+](C)C":-15.1,
+    "C[N+](C)(C)C":-15.1, "C[N+](C)(C)CC":-10.9,
+    "C[P+](C)(C)C":-10.9,
+    "NC(=[NH2+])N":-18.0,
+    "[O-]C=O":-18.2, "CC(=O)[O-]":-18.2, "CCC(=O)[O-]":-23.0,
+    "CS(=O)(=O)[O-]":-18.8,
+    "[O-]P(=O)(O)O":-23.0,
+    "[B-](F)(F)(F)F":-15.1,
+    "[P-](F)(F)(F)(F)(F)F":-10.9,
+    "[S-]C#N":-10.6,
+    "[N+](=O)([O-])[O-]":-18.0,
+    "[O-]Cl(=O)(=O)=O":-15.1,
+};
+
 /* Free energies of transfer (kJ/mol) for all Martini 3 bead types.
    Source: Souza et al. 2021 (https://doi.org/10.1038/s41592-021-01098-3). */
 const DELTA_F = {
@@ -135,29 +171,32 @@ const DELTA_F = {
     TQ1:-14.2, TQ2:-14.5, TQ3:-18.7, TQ4:-16.3, TQ5:-17.0, TD:-36.8,
 };
 
-// Build a canonicalized version of FRAG_DELTA_F using RDKit to normalize SMILES.
-// Called once per predict session. Keys in the original table may be in aromatic
-// notation (e.g. "cc") or non-canonical form; this ensures the lookup always
-// succeeds when comparing against RDKit-canonicalized fragment SMILES.
+// Build a canonicalized version of FRAG_DELTA_F (+ ION_DELTA_F) using RDKit to
+// normalize SMILES. Called once per predict session. Keys in the original
+// table may be in aromatic notation (e.g. "cc") or non-canonical form; this
+// ensures the lookup always succeeds when comparing against
+// RDKit-canonicalized fragment SMILES.
 export function buildCanonTable(RDKit) {
     const result = {};
-    for (const [smi, df] of Object.entries(FRAG_DELTA_F)) {
-        try {
-            const mol = RDKit.get_mol(smi);
-            if (!mol) {
-                // Open-chain aromatic SMILES like "cc", "ccc" are invalid for
-                // RDKit (no ring to close) but are legitimate AutoMartini table
-                // keys. Keep them as-is for direct lookup by aromatic fragments.
+    for (const table of [FRAG_DELTA_F, ION_DELTA_F]) {
+        for (const [smi, df] of Object.entries(table)) {
+            try {
+                const mol = RDKit.get_mol(smi);
+                if (!mol) {
+                    // Open-chain aromatic SMILES like "cc", "ccc" are invalid for
+                    // RDKit (no ring to close) but are legitimate AutoMartini table
+                    // keys. Keep them as-is for direct lookup by aromatic fragments.
+                    if (!(smi in result)) result[smi] = df;
+                    continue;
+                }
+                const canon = mol.get_smiles();
+                mol.delete();
+                if (canon && !(canon in result)) result[canon] = df;
+            } catch (_) {
+                // RDKit threw on an open-chain aromatic key — keep it verbatim so the
+                // aromatic-notation fragment lookup can still match it.
                 if (!(smi in result)) result[smi] = df;
-                continue;
             }
-            const canon = mol.get_smiles();
-            mol.delete();
-            if (canon && !(canon in result)) result[canon] = df;
-        } catch (_) {
-            // RDKit threw on an open-chain aromatic key — keep it verbatim so the
-            // aromatic-notation fragment lookup can still match it.
-            if (!(smi in result)) result[smi] = df;
         }
     }
     return result;
@@ -191,9 +230,19 @@ export function determineBeadType({
 
     let result;
 
-    if (charge !== 0) {
+    if (Math.abs(charge) >= 2) {
+        // Divalent+ ions (Mg2+, Ca2+, phosphate2-, ...) are D-beads by Martini
+        // 3 convention regardless of deltaF -- the Q1-Q5 ladder is for
+        // monovalent charge only, and deltaF-based matching is unreliable
+        // for charged species anyway (verified empirically elsewhere).
+        result = `${p}D`;
+    } else if (charge !== 0) {
+        // Q5 before Q4: SQ4 and SQ5 are the only exact tie anywhere in
+        // DELTA_F (both -18.2). _closestType keeps whichever candidate it
+        // sees first on a tie, so this ordering picks Q5 there instead of
+        // Q4 -- harmless everywhere else, since no other deltaF value ties.
         result = _closestType(deltaF,
-            [`${p}Q1`,`${p}Q2`,`${p}Q3`,`${p}Q4`,`${p}Q5`,`${p}D`]);
+            [`${p}Q1`,`${p}Q2`,`${p}Q3`,`${p}Q5`,`${p}Q4`,`${p}D`]);
     } else if (hAcceptors > 0 && hDonors === 0) {
         // Pure acceptor → 'a' label.
         result = _closestType(deltaF, p === 'T'

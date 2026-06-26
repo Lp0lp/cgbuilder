@@ -45,6 +45,56 @@ describe('determineBeadType', () => {
         }
     });
 
+    it('breaks the SQ4/SQ5 tie (both -18.2 in DELTA_F) in favour of SQ5', () => {
+        // Regression: a carboxylate-like ion-table entry landing on S-size at
+        // exactly -18.2 used to resolve to SQ4 instead of the intended SQ5,
+        // since they're the only exact tie anywhere in DELTA_F.
+        const result = determineBeadType({
+            deltaF: -18.2, charge: -1, hDonors: 0, hAcceptors: 0,
+            hasHalogen: false, inRing: false, weightedHeavyCount: 3, ringOrBranched: false,
+        });
+        expect(result).toBe('SQ5');
+    });
+
+    describe('divalent+ charge defaults to D', () => {
+        it('uses the Q1-Q5 ladder for monovalent charge (+1/-1)', () => {
+            for (const charge of [1, -1]) {
+                const result = determineBeadType({
+                    deltaF: -5.0, charge, hDonors: 0, hAcceptors: 0,
+                    hasHalogen: false, inRing: false, weightedHeavyCount: 4, ringOrBranched: false,
+                });
+                expect(result).toMatch(/^Q[1-5]$/);
+            }
+        });
+
+        it('bypasses deltaF entirely and returns D for |charge| >= 2', () => {
+            for (const charge of [2, -2, 3, -3]) {
+                // deltaF deliberately set to something that would clearly win
+                // a Q-tier match if the ladder were searched, to prove the D
+                // override short-circuits before any matching happens.
+                const result = determineBeadType({
+                    deltaF: -10.9, charge, hDonors: 0, hAcceptors: 0,
+                    hasHalogen: false, inRing: false, weightedHeavyCount: 4, ringOrBranched: false,
+                });
+                expect(result).toBe('D');
+            }
+        });
+
+        it('applies the size prefix to D the same way as any other bead', () => {
+            const tiny = determineBeadType({
+                deltaF: -5.0, charge: 2, hDonors: 0, hAcceptors: 0,
+                hasHalogen: false, inRing: false, weightedHeavyCount: 1, ringOrBranched: false,
+            });
+            expect(tiny).toBe('TD');
+
+            const small = determineBeadType({
+                deltaF: -5.0, charge: -2, hDonors: 0, hAcceptors: 0,
+                hasHalogen: false, inRing: false, weightedHeavyCount: 3, ringOrBranched: false,
+            });
+            expect(small).toBe('SD');
+        });
+    });
+
     it('halogen presence overrides everything else, including charge', () => {
         const result = determineBeadType({
             deltaF: -5.0, charge: 1, hDonors: 1, hAcceptors: 1,
