@@ -176,9 +176,17 @@ function _closestType(deltaF, candidates) {
 
 // Port of AutoMartini M3 determine_bead_type().
 // deltaF: free energy of transfer (kJ/mol) — from table or Crippen conversion.
-// heavyCount: non-H atoms in bead; inRing: any bead atom is aromatic.
-export function determineBeadType({ deltaF, charge, hDonors, hAcceptors, hasHalogen, inRing, heavyCount }) {
-    const sz = heavyCount <= 2 ? 'T' : heavyCount === 3 ? 'S' : '';
+// inRing: any bead atom is aromatic (gates TC5 eligibility only).
+// weightedHeavyCount: heavy-atom count with period->=4 atoms (Br/Se/I...)
+//   counted as 2, per the Martini 3 SI's default bead-size convention.
+// ringOrBranched: bead contains a ring atom or a branch point (>=3 heavy
+//   neighbours) — downgrades a weighted count of 4 from R to S, matching
+//   the SI's "R for linear 4-1, S for ring/branched" rule. 5/3/2 unaffected.
+export function determineBeadType({
+    deltaF, charge, hDonors, hAcceptors, hasHalogen, inRing, weightedHeavyCount, ringOrBranched,
+}) {
+    let sz = weightedHeavyCount <= 2 ? 'T' : weightedHeavyCount === 3 ? 'S' : '';
+    if (sz === '' && weightedHeavyCount === 4 && ringOrBranched) sz = 'S';
     const p = sz;
 
     let result;

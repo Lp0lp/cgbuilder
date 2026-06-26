@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     perceiveChemistry, fragmentToSmiles, moleculeToSmiles, beadDonorCount, countResidues,
+    heavyAtomWeight, weightedHeavyAtomCount,
 } from '../scripts/chemistry.js';
 import { buildStructure } from './helpers/mockStructure.js';
 
@@ -261,5 +262,51 @@ describe('countResidues', () => {
             [{ element: 'C', resno: 1 }, { element: 'O', resno: 2 }, { element: 'N', resno: 3 }], [],
         );
         expect(countResidues(structure)).toBe(3);
+    });
+});
+
+describe('heavyAtomWeight / weightedHeavyAtomCount', () => {
+    it('weights period-4+ elements (Br, Se, I) as 2, everything else as 1', () => {
+        expect(heavyAtomWeight('C')).toBe(1);
+        expect(heavyAtomWeight('S')).toBe(1);  // period 3 -- explicitly not weighted
+        expect(heavyAtomWeight('Cl')).toBe(1); // period 3
+        expect(heavyAtomWeight('Br')).toBe(2);
+        expect(heavyAtomWeight('Se')).toBe(2);
+        expect(heavyAtomWeight('I')).toBe(2);
+    });
+
+    it('sums per-atom weights across a whole structure, excluding hydrogens', () => {
+        // 1 C + 1 Br (+ hydrogens, which never count): weighted = 1 + 2 = 3.
+        const structure = buildStructure(
+            [{ element: 'C' }, { element: 'Br' }, { element: 'H' }, { element: 'H' }, { element: 'H' }],
+            [{ a: 0, b: 1 }, { a: 0, b: 2 }, { a: 0, b: 3 }, { a: 0, b: 4 }],
+        );
+        expect(weightedHeavyAtomCount(structure)).toBe(3);
+    });
+});
+
+describe('perceiveChemistry — branchAtoms', () => {
+    it('flags a branch point (>=3 heavy neighbours) and nothing else', () => {
+        // Isobutane-like: central C0 bonded to 3 methyl carbons + 1 H.
+        const structure = buildStructure(
+            [
+                { element: 'C' }, { element: 'C' }, { element: 'C' }, { element: 'C' }, // C0..C3
+                { element: 'H' }, // on C0
+                { element: 'H' }, { element: 'H' }, { element: 'H' }, // on C1
+                { element: 'H' }, { element: 'H' }, { element: 'H' }, // on C2
+                { element: 'H' }, { element: 'H' }, { element: 'H' }, // on C3
+            ],
+            [
+                { a: 0, b: 1 }, { a: 0, b: 2 }, { a: 0, b: 3 }, { a: 0, b: 4 },
+                { a: 1, b: 5 }, { a: 1, b: 6 }, { a: 1, b: 7 },
+                { a: 2, b: 8 }, { a: 2, b: 9 }, { a: 2, b: 10 },
+                { a: 3, b: 11 }, { a: 3, b: 12 }, { a: 3, b: 13 },
+            ],
+        );
+        const chem = perceiveChemistry(structure);
+        expect(chem.branchAtoms.has(0)).toBe(true);
+        expect(chem.branchAtoms.has(1)).toBe(false);
+        expect(chem.branchAtoms.has(2)).toBe(false);
+        expect(chem.branchAtoms.has(3)).toBe(false);
     });
 });

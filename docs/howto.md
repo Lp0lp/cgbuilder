@@ -47,7 +47,7 @@ If you use the bead type predictions, please also cite AutoMartini (see [Resourc
 
 The **Mapping** panel (top bar) tracks the quality of your mapping in real time:
 
-- **Heavy atoms** — total non-hydrogen atoms in the loaded structure.
+- **Heavy atoms** — total non-hydrogen atoms in the loaded structure, weighted per the Martini 3 default bead-size convention: atoms from period 4 or higher (Br, Se, I, ...) count as 2, since they're bulkier than a typical 2nd/3rd-period atom.
 - **Beads** — number of beads defined, with a breakdown by size class (R = regular, S = small, T = tiny, U = virtual).
 - **Mismatch** — difference between the heavy atoms your beads account for and the number expected from their size classes. A mismatch of ±1 per 10 heavy atoms is considered acceptable in Martini. Green = within tolerance, amber = acceptable, red = under- or over-mapped. Shown as a warning if any bead type is unset.
 

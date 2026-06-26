@@ -10,8 +10,8 @@
    bond" — which produced real, confirmed bugs (a furan-type oxygen could
    get assigned a double bond, making the fragment invalid).
 
-   This rewrite instead ports the approach from xyz2mol (Kim & Kim, 2015,
-   https://doi.org/10.1002/bkcs.10334; reference implementation
+   This rewrite instead tries to follow the approach from xyz2mol (Kim & Kim,
+   2015, https://doi.org/10.1002/bkcs.10334; reference implementation
    https://github.com/jensengroup/xyz2mol): derive bond order and formal
    charge from valence bookkeeping alone, given a structure with EXPLICIT
    hydrogen atoms (see "why explicit hydrogens are required" below).
@@ -237,6 +237,7 @@ function _connectedComponents(nodes, adj) {
  *   available: boolean,
  *   ringAtoms: Set<number>,        // every atom in any ring, aromatic or not
  *   aromaticAtoms: Set<number>,    // ring atoms in a fully-resolved alternating system
+ *   branchAtoms: Set<number>,      // heavy atoms with >=3 heavy-atom neighbours
  *   bondOrders: Map<string,number>,// "minIdx-maxIdx" -> order, ALL bonds
  *   charges: Map<number,number>,   // atomIdx -> derived formal charge
  *   hNeighbors: Map<number,number>,// atomIdx -> count of explicit H neighbours
@@ -244,7 +245,7 @@ function _connectedComponents(nodes, adj) {
  */
 export function perceiveChemistry(structure) {
     const empty = {
-        available: false, ringAtoms: new Set(), aromaticAtoms: new Set(),
+        available: false, ringAtoms: new Set(), aromaticAtoms: new Set(), branchAtoms: new Set(),
         bondOrders: new Map(), charges: new Map(), hNeighbors: new Map(),
     };
     if (!structure || typeof structure.eachAtom !== 'function') return empty;
@@ -306,6 +307,17 @@ export function perceiveChemistry(structure) {
         if (element.get(idx) === 'H') continue;
         heavyAdj.set(idx, (adj.get(idx) || []).filter((n) => element.get(n) !== 'H'));
     }
+
+    // Branch points: atoms with >=3 heavy-atom neighbours, used by the bead
+    // size-class rule (a 4-heavy-atom ring or branched group sizes as S
+    // instead of R). Computed from the full heavy-atom adjacency before any
+    // ring-pruning below, since branching is a property of the real
+    // molecule, not of the pruned ring-only subgraph.
+    const branchAtoms = new Set();
+    for (const [idx, neighbors] of heavyAdj) {
+        if (neighbors.length >= 3) branchAtoms.add(idx);
+    }
+
     const degree = new Map([...heavyAdj].map(([k, v]) => [k, v.length]));
     const removed = new Set();
     let changed = true;
@@ -387,7 +399,7 @@ export function perceiveChemistry(structure) {
         if (fullyConjugated) for (const idx of cyc) aromaticAtoms.add(idx);
     }
 
-    return { available: true, ringAtoms, aromaticAtoms, bondOrders, charges, hNeighbors };
+    return { available: true, ringAtoms, aromaticAtoms, branchAtoms, bondOrders, charges, hNeighbors };
 }
 
 /**
@@ -600,6 +612,42 @@ export function countResidues(structure) {
         });
     }
     return seen.size;
+}
+
+// Elements in a period higher than the 3rd (Br/Se = period 4, I = period 5).
+// Per the Martini 3 SI's default bead-size convention, these count as TWO
+// non-hydrogen atoms when sizing a bead, since they're physically bulkier
+// than a typical 2nd/3rd-period heavy atom (S/P/Cl/Si stay at normal weight
+// — the SI's example is iodine). Used both for whole-molecule heavy-atom
+// counts (the Mismatch panel) and per-bead weighted counts (bead size-class
+// prediction), so both stay on the same scale.
+const _PERIOD_4_PLUS = new Set(['BR', 'SE', 'I']);
+
+/**
+ * Bead-sizing weight for one element: 2 for a period->=4 atom, 1 otherwise.
+ * @param {string} element - element symbol, any case
+ * @returns {number} 1 or 2
+ */
+export function heavyAtomWeight(element) {
+    return _PERIOD_4_PLUS.has((element || '').toUpperCase()) ? 2 : 1;
+}
+
+/**
+ * Sum of heavyAtomWeight() over every non-hydrogen atom in a structure —
+ * the weighted heavy-atom total used as the Mismatch panel's reference
+ * value, kept on the same scale as bead-type-implied expected counts.
+ * @param {object} structure - NGL-style structure (eachAtom)
+ * @returns {number}
+ */
+export function weightedHeavyAtomCount(structure) {
+    let total = 0;
+    if (structure && typeof structure.eachAtom === 'function') {
+        structure.eachAtom((atom) => {
+            const el = (atom.element || '').toUpperCase();
+            if (el !== 'H') total += heavyAtomWeight(el);
+        });
+    }
+    return total;
 }
 
 export function structureHasHydrogens(structure) {

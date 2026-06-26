@@ -1,6 +1,7 @@
 import { buildCanonTable, determineBeadType } from './prediction.js';
 import {
     perceiveChemistry, fragmentToSmiles, beadDonorCount, countResidues,
+    heavyAtomWeight, weightedHeavyAtomCount,
 } from './chemistry.js';
 import { PROBE_RADIUS, aaSASA, cgSASA, beadsToPDB } from './sasa.js';
 import { generateNDX, generateMap, generateGRO, generatePythonAssignments,
@@ -187,10 +188,12 @@ export class Visualization {
         document.getElementById('atom-name-warning').hidden = !hasDupes;
     }
 
+    // Weighted, not a plain count — period->=4 atoms (Br/Se/I...) count as 2,
+    // so this stays on the same scale as bead-type-implied expected counts
+    // in updateMappingStats (a bead correctly sized small around a bromine
+    // shouldn't look "over-mapped" just because the raw atom count is low).
     countHeavyAtoms(structure) {
-        let count = 0;
-        structure.eachAtom(ap => { if ((ap.element || '').toUpperCase() !== 'H') count++; });
-        this.nHeavyAtoms = count;
+        this.nHeavyAtoms = weightedHeavyAtomCount(structure);
     }
 
     attachAALabels(component) {
@@ -273,18 +276,18 @@ export class Visualization {
         const desc = JSON.parse(mol.get_descriptors());
         mol.delete();
 
-        // Charge for prediction comes ONLY from the backend-derived value
-        // (real bonding environment — see chemistry.js), never from the
-        // bead's manually-set Charge field. That field is a separate,
-        // user-editable export value; mixing it into prediction would mean
-        // the same number sometimes is and sometimes isn't double-counted
-        // depending on what the user already typed in.
         const charge = bead.atoms.reduce((s, a) => s + (chemistry.charges.get(a.index) ?? 0), 0);
         const hasHalogen = bead.atoms.some(a =>
             ['F','CL','BR','I'].includes((a.element || '').toUpperCase()));
         const inRing     = bead.atoms.some(a => chemistry.aromaticAtoms.has(a.index));
-        const heavyCount = bead.atoms.filter(a =>
-            (a.element || 'C').toUpperCase() !== 'H').length;
+        const heavyAtoms = bead.atoms.filter(a => (a.element || 'C').toUpperCase() !== 'H');
+        // Period->=4 atoms (Br/Se/I...) count as 2 toward bead size — see
+        // chemistry.js's heavyAtomWeight. A ring or branch point (>=3 heavy
+        // neighbours anywhere in the bead) downgrades a weighted count of 4
+        // from R to S, per the Martini 3 SI's bead-size convention.
+        const weightedHeavyCount = heavyAtoms.reduce((s, a) => s + heavyAtomWeight(a.element), 0);
+        const ringOrBranched = bead.atoms.some(a =>
+            chemistry.ringAtoms.has(a.index) || chemistry.branchAtoms.has(a.index));
         const hDonors    = beadDonorCount(bead, chemistry);
 
         // Table-first lookup. The AutoMartini table uses open-chain
@@ -331,7 +334,7 @@ export class Visualization {
             + `arom=${inRing} HBD=${hDonors} HBA=${hAcceptors}`);
 
         bead.suggestedType = determineBeadType(
-            { deltaF, charge, hDonors, hAcceptors, hasHalogen, inRing, heavyCount });
+            { deltaF, charge, hDonors, hAcceptors, hasHalogen, inRing, weightedHeavyCount, ringOrBranched });
 
         // Suggest updating the Charge field too when the bead's atoms imply
         // a charge the user hasn't already set — e.g. a deprotonated
