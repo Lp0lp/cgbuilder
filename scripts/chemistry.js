@@ -1,19 +1,12 @@
 /* ===========================================================================
    Chemistry perception — bond order, aromaticity, formal charge
    ===========================================================================
-   ALGORITHM. PDB/GRO files carry atomic connectivity but no bond *order* —
+   PDB/GRO files carry atomic connectivity but no bond *order* —
    the file never says whether a bond is single, double, or triple. This
-   module used to guess bond order from 3D bond length (a shortened bond
-   "looks like" a double bond). That guess is unreliable for ring systems:
-   resonance blurs aromatic bond lengths, and it had no concept of "this
-   heteroatom's lone pair completes the ring, it can never take a double
-   bond" — which produced real, confirmed bugs (a furan-type oxygen could
-   get assigned a double bond, making the fragment invalid).
-
-   This rewrite instead tries to follow the approach from xyz2mol (Kim & Kim,
-   2015, https://doi.org/10.1002/bkcs.10334; reference implementation
-   https://github.com/jensengroup/xyz2mol): derive bond order and formal
-   charge from valence bookkeeping alone, given a structure with EXPLICIT
+   module derives bond order and formal charge from valence bookkeeping
+   alone, following the approach of xyz2mol (Kim & Kim, 2015,
+   https://doi.org/10.1002/bkcs.10334; reference implementation
+   https://github.com/jensengroup/xyz2mol), given a structure with EXPLICIT
    hydrogen atoms (see "why explicit hydrogens are required" below).
 
      1. Every atom has a target valence (C=4, N=3, O=2, S=2, P=3, ... — see
@@ -24,13 +17,11 @@
         deficit > 0 has room for one more bond.
      3. A maximum matching (graph theory: the largest set of bonds with no
         shared endpoint) is found among every bonded pair of deficit>0
-        atoms. Each matched bond becomes a double bond. This picks ALL the
-        double bonds in a ring simultaneously and consistently, rather than
-        guessing bond-by-bond from geometry. A furan/thiophene ring
-        oxygen/sulfur (two single ring bonds, no H) already has zero
-        deficit and is automatically excluded from the matching — not
-        through a hard-coded "exclude O/S" rule, simply because it has
-        nothing left to fill.
+        atoms, and each matched bond becomes a double bond — picking all the
+        double bonds in a ring at once rather than one bond at a time. A
+        heteroatom whose target valence is already satisfied by single
+        bonds alone (e.g. a furan/thiophene ring O/S) simply has zero
+        deficit, so it's never eligible — no separate exclusion rule needed.
      4. Triple bonds: a matched pair that still has exactly 1 unit of
         deficit left on both sides, with no other eligible neighbour for
         either atom, escalates to a triple bond (nitriles, alkynes).
@@ -47,16 +38,15 @@
    graph, a terminal heavy atom with one heavy neighbour is structurally
    ambiguous: it could be a saturated −CH3/−NH2/−OH group (no deficit at
    all) or genuinely unsaturated (a real double/triple bond) — pure valence
-   counting cannot tell these apart (verified empirically: a heavy-atom-only
-   nitrile fragment resolves to the WRONG bond getting the multiple bond).
-   With real hydrogens present this ambiguity never arises: a −CH3 carbon
-   already has all 4 bonds accounted for (3×H + 1 heavy) and is simply never
-   a matching candidate. So perceiveChemistry deliberately returns
-   `available: false` for structures with no explicit hydrogens, rather than
-   silently falling back to the same kind of geometry-based guessing that
-   produced the bug this rewrite fixes. Callers must check `available`
-   before using the result, and the UI should disable bead-type prediction
-   (and anything else depending on this) when it is false.
+   counting cannot tell these apart (e.g. a heavy-atom-only nitrile fragment
+   would have the multiple bond resolve onto the wrong pair). With real
+   hydrogens present this ambiguity never arises: a −CH3 carbon already has
+   all 4 bonds accounted for (3×H + 1 heavy) and is simply never a matching
+   candidate. So perceiveChemistry deliberately returns `available: false`
+   for structures with no explicit hydrogens, rather than guessing. Callers
+   must check `available` before using the result, and the UI should
+   disable bead-type prediction (and anything else depending on this) when
+   it is false.
    =========================================================================== */
 
 // Neutral free-atom valence electron count (periodic table group), used by
@@ -108,6 +98,10 @@ function _maxMatching(nodes, edgeList) {
     for (const [a, b] of edgeList) { adj.get(a).push(b); adj.get(b).push(a); }
 
     let best = [];
+    // Exhaustive depth-first search: at each step either match `node` with
+    // one of its still-available neighbours and recurse, or leave it
+    // unmatched and recurse on the rest. `best` keeps the largest matching
+    // found across the whole search tree.
     function backtrack(remaining, current) {
         if (current.length > best.length) best = current.slice();
         if (remaining.size === 0) return;
@@ -201,6 +195,9 @@ function _resolveBondOrders(elements, knownCharge, edges) {
  * Bond-order resolution runs independently per component, so unrelated
  * molecules sharing one file (e.g. a ligand plus a separately-listed water)
  * never interfere with each other.
+ * @param {Array} nodes - every node id in the graph
+ * @param {Map<any,Array>} adj - adjacency list, node id -> array of neighbour ids
+ * @returns {Array<Set>} one Set of node ids per connected component
  */
 function _connectedComponents(nodes, adj) {
     const seen = new Set();
@@ -278,7 +275,7 @@ export function perceiveChemistry(structure) {
     // Resolve bond orders + charge per connected component independently.
     const bondOrders = new Map();
     const charges = new Map();
-    const knownCharge = new Map();
+    const knownCharge = new Map(); // knownCharge comes from PDB. Meh... barely used. We could scrap.
     structure.eachAtom((a) => { if (a.formalCharge) knownCharge.set(a.index, a.formalCharge); });
     for (const comp of _connectedComponents([...element.keys()], adj)) {
         const compElements = new Map([...element].filter(([idx]) => comp.has(idx)));
@@ -490,6 +487,13 @@ export function fragmentToSmiles(beadAtoms, chemistry, { aromaticNotation = fals
     const ringClosures = new Map();
     let digitCounter = 1;
 
+    // DFS over the bead's internal bonds to find ring-closure points: a
+    // "back edge" (a bond to an already-visited, still-on-the-stack
+    // ancestor) marks a ring closure rather than a tree edge. Each closure
+    // is recorded on BOTH endpoints with a shared digit, so dfs() below can
+    // later emit that digit (and, on the second-visited side, the bond
+    // symbol) at the right point in the string — the standard SMILES
+    // ring-bond-digit mechanism.
     function findBackEdges(idx, parentIdx) {
         visited.add(idx); inStack.add(idx);
         for (const { toIdx, order } of (data.get(idx)?.internalBonds ?? [])) {
@@ -513,10 +517,19 @@ export function fragmentToSmiles(beadAtoms, chemistry, { aromaticNotation = fals
     findBackEdges(startIdx, -1);
     visited.clear();
 
+    // SMILES bond symbol for a resolved bond order (single bonds have no
+    // symbol — they're implicit between two adjacent atom tokens).
     function bondChar(order) {
         return order === 2 ? '=' : order === 3 ? '#' : '';
     }
 
+    // This atom's own SMILES token. An aromatic-notation atom (see the
+    // module comment) is always a bare lowercase symbol, with no H-count or
+    // charge ever written — that information is simply dropped, matching
+    // AutoMartini's own open-chain aromatic table keys. Otherwise: a bare
+    // element symbol when no bracket is needed (uncharged, in the SMILES
+    // "organic subset" of _ORGANIC), or a bracketed [symbol H-count charge]
+    // form when one is.
     function atomToken(idx) {
         const d = data.get(idx);
         if (aromaticNotation && aromaticAtoms.has(idx)) {
@@ -533,6 +546,9 @@ export function fragmentToSmiles(beadAtoms, chemistry, { aromaticNotation = fals
         return `[${inner}]`;
     }
 
+    // Ring-closure digits to append right after this atom's own token (and,
+    // on the side that "writes" the bond, the bond symbol before each
+    // digit) — one entry per ring this atom closes, per findBackEdges above.
     function closureSuffix(idx) {
         return (ringClosures.get(idx) ?? []).map(({ digit, order, writeBond }) => {
             const b = writeBond ? bondChar(order) : '';
@@ -540,6 +556,12 @@ export function fragmentToSmiles(beadAtoms, chemistry, { aromaticNotation = fals
         }).join('');
     }
 
+    // Depth-first traversal that assembles the actual SMILES string: this
+    // atom's token plus any ring-closure digits, then one parenthesised
+    // branch per child bond except the last, which continues the main chain
+    // inline — the standard SMILES branching convention, applied over the
+    // bead's internal bonds only (external bonds were already folded into
+    // hCount above).
     function dfs(idx) {
         visited.add(idx);
         let smi = atomToken(idx) + closureSuffix(idx);
@@ -710,6 +732,14 @@ export function weightedHeavyAtomCount(structure) {
     return total;
 }
 
+/**
+ * Whether a structure contains at least one explicit hydrogen atom — the
+ * gate perceiveChemistry uses to decide whether valence-budget bond-order
+ * resolution is even possible (see the module-level "why explicit hydrogens
+ * are required" comment).
+ * @param {object} structure - NGL-style structure (eachAtom)
+ * @returns {boolean}
+ */
 export function structureHasHydrogens(structure) {
     let found = false;
     if (structure && typeof structure.eachAtom === 'function') {
