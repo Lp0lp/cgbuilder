@@ -630,12 +630,20 @@ details[open] .atom-list-summary::before {
 .output-warning {
     padding: 6px 10px;
     margin-bottom: 6px;
-    background: color-mix(in srgb, var(--sasa-bad) 10%, var(--bg-surface));
-    border: 1px solid var(--sasa-bad);
+    background: color-mix(in srgb, var(--sasa-warn) 10%, var(--bg-surface));
+    border: 1px solid var(--sasa-warn);
     border-radius: 6px;
     font-size: 12px;
-    color: var(--sasa-bad);
+    color: var(--sasa-warn);
     font-weight: 500;
+}
+
+/* A genuine error (output will definitely be wrong/faulty), as opposed to
+   the orange default above (an advisory condition worth checking). */
+.output-warning.output-error {
+    background: color-mix(in srgb, var(--sasa-bad) 10%, var(--bg-surface));
+    border-color: var(--sasa-bad);
+    color: var(--sasa-bad);
 }
 
 #multi-residue-warning {

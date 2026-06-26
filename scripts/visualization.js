@@ -1,6 +1,6 @@
 import { buildCanonTable, determineBeadType } from './prediction.js';
 import {
-    perceiveChemistry, fragmentToSmiles, beadDonorCount, countResidues,
+    perceiveChemistry, fragmentToSmiles, moleculeToSmiles, beadDonorCount, countResidues,
     heavyAtomWeight, weightedHeavyAtomCount, cappedHeteroatoms,
 } from './chemistry.js';
 import { PROBE_RADIUS, aaSASA, cgSASA, beadsToPDB } from './sasa.js';
@@ -30,6 +30,29 @@ function findParentWithClass(element, className) {
         node = node.parentElement;
     }
     return null;
+}
+
+// Wires a tab's Copy button to copy the text of its output <pre>, with the
+// same "Copied!"/"Failed" button-text feedback used across all output tabs.
+function wireCopyButton(buttonId, outputId) {
+    const button = document.getElementById(buttonId);
+    if (!button) return;
+    button.onclick = async () => {
+        const originalText = button.textContent;
+        const text = document.getElementById(outputId).textContent || "";
+        try {
+            await copyTextToClipboard(text);
+            button.textContent = "Copied!";
+            button.classList.add("copied");
+            setTimeout(() => {
+                button.textContent = originalText;
+                button.classList.remove("copied");
+            }, 1200);
+        } catch (err) {
+            button.textContent = "Failed";
+            setTimeout(() => { button.textContent = originalText; }, 1200);
+        }
+    };
 }
 
 export class Visualization {
@@ -90,23 +113,14 @@ export class Visualization {
         document.getElementById('dl-py').onclick = () =>
             download('cgbuilder_assignments.py', generatePythonAssignments(this.collection));
 
-        document.getElementById('copy-py').onclick = async (event) => {
-            const button = event.target;
-            const originalText = button.textContent;
-            const text = document.getElementById('py-output').textContent || "";
-            try {
-                await copyTextToClipboard(text);
-                button.textContent = "Copied!";
-                button.classList.add("copied");
-                setTimeout(() => {
-                    button.textContent = originalText;
-                    button.classList.remove("copied");
-                }, 1200);
-            } catch (err) {
-                button.textContent = "Failed";
-                setTimeout(() => { button.textContent = originalText; }, 1200);
-            }
-        };
+        document.getElementById('dl-smiles').onclick = () =>
+            download('cgbuilder.smi', document.getElementById('smiles-output').textContent || "");
+
+        wireCopyButton('copy-py', 'py-output');
+        wireCopyButton('copy-gro', 'gro-output');
+        wireCopyButton('copy-ndx', 'ndx-output');
+        wireCopyButton('copy-map', 'map-output');
+        wireCopyButton('copy-smiles', 'smiles-output');
     }
 
 	get currentBead() {
@@ -155,6 +169,18 @@ export class Visualization {
 
         const residueWarning = document.getElementById('multi-residue-warning');
         if (residueWarning) residueWarning.hidden = countResidues(component.structure) <= 1;
+
+        const smilesEl = document.getElementById('smiles-output');
+        if (smilesEl) {
+            if (!this.chemistry.available) {
+                smilesEl.textContent = 'Needs a structure with explicit hydrogen atoms '
+                    + '(e.g. a GROMACS .gro file, or a PDB run through a protonation tool).';
+            } else {
+                const smiles = moleculeToSmiles(component.structure, this.chemistry);
+                smilesEl.textContent = smiles
+                    ?? 'Could not generate a single SMILES — structure has more than one disconnected fragment.';
+            }
+        }
 
         if (this.chemistry.available) this._reflectBondOrders(component);
     }

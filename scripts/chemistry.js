@@ -570,8 +570,30 @@ export function fragmentToSmiles(beadAtoms, chemistry, { aromaticNotation = fals
  */
 export function moleculeToSmiles(structure, chemistry) {
     if (!structure || !chemistry || !chemistry.available) return null;
-    const heavy = [];
-    structure.eachAtom((a) => { if ((a.element || 'C').toUpperCase() !== 'H') heavy.push(a); });
+
+    // Collect indices during the eachAtom pass, then build a fresh proxy per
+    // atom — eachAtom's callback argument is a single reused/mutable proxy
+    // in real NGL structures, so storing it directly would leave every
+    // entry aliased to whichever atom the iteration finished on.
+    const heavyIndices = [];
+    structure.eachAtom((a) => { if ((a.element || 'C').toUpperCase() !== 'H') heavyIndices.push(a.index); });
+    const heavy = heavyIndices.map((idx) => structure.getAtomProxy(idx));
+
+    // A multi-molecule file (e.g. a ligand plus a separately-listed ion)
+    // would otherwise silently produce a SMILES for just whichever fragment
+    // the DFS happens to start in, rather than the null this is documented
+    // to return.
+    const heavySet = new Set(heavyIndices);
+    const adj = new Map(heavyIndices.map((idx) => [idx, []]));
+    for (const atom of heavy) {
+        if (typeof atom.eachBond !== 'function') continue;
+        atom.eachBond((bond) => {
+            const other = bond.atomIndex1 === atom.index ? bond.atomIndex2 : bond.atomIndex1;
+            if (heavySet.has(other)) adj.get(atom.index).push(other);
+        });
+    }
+    if (_connectedComponents(heavyIndices, adj).length > 1) return null;
+
     return fragmentToSmiles(heavy, chemistry);
 }
 
