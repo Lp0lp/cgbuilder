@@ -125,15 +125,13 @@ function _maxMatching(nodes, edgeList) {
  * comment). Resolves bond orders for one connected component of a molecular
  * graph that includes explicit hydrogen atoms.
  * @param {Map<number,string>} elements - atomIdx -> upper-cased element
- * @param {Map<number,number>} knownCharge - atomIdx -> already-known formal
- *   charge (e.g. from the file), default 0 for anything absent
  * @param {Array<[number,number]>} edges - bonded atom-index pairs
  * @returns {{ order: Map<string,number>, charge: Map<number,number> }}
  *   order keyed "min-max", charge per atom index (all bonds counted, H
  *   included — callers needing "real H count" should count H-element
  *   neighbours directly, it's already explicit in the input graph).
  */
-function _resolveBondOrders(elements, knownCharge, edges) {
+function _resolveBondOrders(elements, edges) {
     const adj = new Map();
     for (const idx of elements.keys()) adj.set(idx, []);
     const order = new Map();
@@ -150,11 +148,9 @@ function _resolveBondOrders(elements, knownCharge, edges) {
     };
     const targetValence = (idx) => {
         const el = elements.get(idx);
-        const charge = knownCharge.get(idx) || 0;
         const options = _VALENCE_OPTIONS[el] || [4];
         const rawDegree = adj.get(idx).length;
-        const base = options.find((v) => v >= rawDegree) ?? options[options.length - 1];
-        return base + charge;
+        return options.find((v) => v >= rawDegree) ?? options[options.length - 1];
     };
     const deficit = (idx) => targetValence(idx) - boSum(idx);
 
@@ -275,12 +271,10 @@ export function perceiveChemistry(structure) {
     // Resolve bond orders + charge per connected component independently.
     const bondOrders = new Map();
     const charges = new Map();
-    const knownCharge = new Map(); // knownCharge comes from PDB. Meh... barely used. We could scrap.
-    structure.eachAtom((a) => { if (a.formalCharge) knownCharge.set(a.index, a.formalCharge); });
     for (const comp of _connectedComponents([...element.keys()], adj)) {
         const compElements = new Map([...element].filter(([idx]) => comp.has(idx)));
         const compEdges = edges.filter(([a, b]) => comp.has(a));
-        const { order, charge } = _resolveBondOrders(compElements, knownCharge, compEdges);
+        const { order, charge } = _resolveBondOrders(compElements, compEdges);
         for (const [k, v] of order) bondOrders.set(k, v);
         for (const [k, v] of charge) charges.set(k, v);
     }
