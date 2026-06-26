@@ -3,8 +3,34 @@ import { Visualization } from './visualization.js';
 import { readOriginalAtomNames, bondAwareRepresentationParams } from './fileformats.js';
 import { EXAMPLE_PDB, EXAMPLE_MAPPING } from './example.js';
 
+/* ===========================================================================
+   main — entry point and page-level wiring
+   ===========================================================================
+   Bootstraps the NGL stage, creates a fresh BeadCollection + Visualization
+   per loaded molecule, and wires up everything that isn't specific to one
+   molecule (theme, the output-tab bar, the top-level navbar/doc pages, the
+   clear-beads and paste-mapping dialogs). Pure UI wiring — no algorithm
+   lives in this file. */
+
+// The active Visualization instance, since the app only ever has one
+// molecule loaded at a time. Module-level rather than passed around, so
+// page-level handlers set up once in main() (the clear-beads/paste-mapping
+// dialogs) can reach whichever molecule is currently loaded without each
+// needing their own reference threaded through.
 let currentVizu = null;
 
+/**
+ * Load a molecule from a File into the viewer: tears down any previously
+ * loaded component, creates a fresh BeadCollection + Visualization for it,
+ * and loads both the structure (via NGL) and its original atom names (see
+ * fileformats.js's readOriginalAtomNames) in parallel before wiring up the
+ * rest of the per-molecule UI (new-bead buttons, the 3D click handler).
+ * @param {File} file
+ * @param {object} stage - NGL Stage
+ * @returns {Promise<void>} resolves once the molecule is fully loaded and
+ *   the UI is ready — callers that need to act afterward (e.g. applying a
+ *   mapping right after loading the bundled example) chain onto this
+ */
 function loadMoleculeFromFile(file, stage) {
     stage.removeAllComponents();
     stage.signals.clicked.removeAll();
@@ -45,10 +71,16 @@ function loadMoleculeFromFile(file, stage) {
     return ready;
 }
 
+/**
+ * The "Choose File" <input type="file">'s change handler.
+ * @param {Event} event
+ * @param {object} stage - NGL Stage
+ */
 function loadMolecule(event, stage) {
     loadMoleculeFromFile(event.target.files[0], stage);
 }
 
+/** Wire up the output-tab bar (Shaker/.gro/.ndx/.map/AA SMILES) switching. */
 function initTabs() {
     const btns = document.querySelectorAll('.tab-btn');
     const panels = document.querySelectorAll('.tab-panel');
@@ -62,10 +94,20 @@ function initTabs() {
     });
 }
 
+/**
+ * Wire up the dark/light theme toggle and keep the NGL stage's background
+ * colour in sync with it (and vice versa, via the separate "Light BG"
+ * checkbox — the two are independent: page theme is persisted to
+ * localStorage and restored on load via the inline <head> script; the
+ * viewer background is a per-session NGL parameter, not persisted).
+ * @param {object} stage - NGL Stage
+ */
 function initTheme(stage) {
     const themeBtn = document.getElementById('theme-toggle');
     const bgToggle = document.getElementById('toggle-bg');
 
+    // Apply isDark to both the NGL viewer background and the "Light BG"
+    // checkbox's own state, so the two stay consistent with each other.
     function syncBg(isDark) {
         bgToggle.checked = !isDark;
         stage.setParameters({ backgroundColor: isDark ? 'black' : 'white' });
@@ -91,6 +133,14 @@ function initTheme(stage) {
     };
 }
 
+/**
+ * Lazily fetch and render one navbar page's markdown content (How-to,
+ * Guidelines, ...) into HTML via `marked`, the first time that page is
+ * visited. `container.dataset.loaded` memoizes this so revisiting a page
+ * doesn't re-fetch/re-render it.
+ * @param {Element} pageEl - the page's container, holding a
+ *   `.doc-content[data-md]` element naming its markdown source file
+ */
 function loadDocPage(pageEl) {
     const container = pageEl.querySelector('.doc-content[data-md]');
     if (!container || container.dataset.loaded) return;
@@ -100,6 +150,14 @@ function loadDocPage(pageEl) {
         .catch(() => { container.innerHTML = '<p>Could not load documentation.</p>'; });
 }
 
+/**
+ * Wire up the top-level navbar (App / How-to / Guidelines / ...): switches
+ * the visible `.page`, and either resizes the NGL stage (returning to the
+ * App page, whose canvas may be stale after being hidden via CSS while
+ * another page was active) or lazily loads that page's doc content
+ * (loadDocPage).
+ * @param {object} stage - NGL Stage
+ */
 function initNavbar(stage) {
     const tabs = document.querySelectorAll('.navbar-tab');
     const pages = document.querySelectorAll('.page');
@@ -116,6 +174,13 @@ function initNavbar(stage) {
     });
 }
 
+/**
+ * App entry point (see window.onload below): creates the NGL stage, wires
+ * up every control that doesn't depend on a molecule being loaded yet (file
+ * input, the bundled-example button, the clear-beads and paste-mapping
+ * dialogs, recenter/save-image), and delegates the rest to initTheme/
+ * initTabs/initNavbar.
+ */
 function main() {
     // Capture wheel events within the viewer so the page doesn't scroll when zooming.
     // https://github.com/nglviewer/ngl/issues/878#issuecomment-913504711
@@ -197,4 +262,6 @@ function main() {
     initNavbar(stage);
 }
 
+// Run once the whole page (not just the DOM) has loaded, since main() reads
+// layout-dependent state (NGL.Stage sizes itself from the viewport element).
 window.onload = main;
