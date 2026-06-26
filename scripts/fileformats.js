@@ -1,3 +1,28 @@
+/* ===========================================================================
+   File I/O — export generators, import parsers, small browser helpers
+   ===========================================================================
+   Three unrelated concerns share this file because each is small enough not
+   to need its own module:
+     1. Output generators (generateNDX, generateMap, generatePythonAssignments,
+        generateGRO) — serialise the current bead mapping into the formats
+        downstream tools expect (GROMACS .ndx/.gro, a Martini .map, a Shaker
+        Python assignments dict).
+     2. Import parsers (parsePDBAtomNames/parseGROAtomNames/
+        parseOriginalAtomNames/readOriginalAtomNames, parseShakerMapping) —
+        the reverse direction: recovering the original AA atom names from a
+        just-loaded file (NGL's own parsed atom names aren't guaranteed to
+        match the source file byte-for-byte), and re-importing a previously
+        exported Shaker mapping.
+     3. Small browser utility helpers (download, copyTextToClipboard) and one
+        NGL representation-params helper (bondAwareRepresentationParams) that
+        don't have a more specific home elsewhere. */
+
+/**
+ * GROMACS .ndx text: one `[ bead name ]` group per bead, listing its atoms'
+ * 1-based (GROMACS convention) indices.
+ * @param {object} collection - BeadCollection
+ * @returns {string}
+ */
 export function generateNDX(collection) {
     let ndx = "";
     for (const bead of collection.beads) {
@@ -10,6 +35,18 @@ export function generateNDX(collection) {
     return ndx;
 }
 
+/**
+ * Martini .map text: a `[ to ]`/`[ martini ]` header followed by an
+ * `[ atoms ]` section, one line per distinct AA atom NAME listing which
+ * bead(s) it contributes to. Grouping is by atom name rather than atom
+ * index — this assumes atom names are unique within the structure (the
+ * same assumption the app's own atom-name-uniqueness warning exists to
+ * flag; if two different atoms share a name, this would wrongly merge
+ * them into one .map line). Atom order in the output follows the original
+ * structure's atom index, not bead order.
+ * @param {object} collection - BeadCollection
+ * @returns {string}
+ */
 export function generateMap(collection) {
     let output = "[ to ]\nmartini\n\n[ martini ]\n";
     let atomToBeads = {};
@@ -44,6 +81,17 @@ export function generateMap(collection) {
     return output;
 }
 
+/**
+ * Shaker (https://github.com/Lp0lp/shaker) Python assignments dict literal:
+ * `mapping = { resname: { beadName: {type, charge, atoms: [...]}, ... } }`.
+ * The resname used is read from the first bead that actually has atoms
+ * assigned (falls back to "UNK" if none do). Atom lists are expanded per
+ * bead.atomWeights, so an atom weighted ×2 (pulled toward by repeated
+ * clicks) appears twice. This is the exact format parseShakerMapping reads
+ * back in for the "Load mapping" feature, so the two must stay in sync.
+ * @param {object} collection - BeadCollection
+ * @returns {string} empty string if the collection has no beads
+ */
 export function generatePythonAssignments(collection) {
     const beads = collection.beads || [];
     if (beads.length === 0) return "";
@@ -75,6 +123,20 @@ export function generatePythonAssignments(collection) {
     return lines.join("\n") + "\n";
 }
 
+/**
+ * GROMACS .gro text: fixed-column format (resid/resname/atomname/atomid
+ * each 5 characters, coordinates 8-character fields), one ATOM line per
+ * bead at its geometric centre, coordinates converted from the app's
+ * internal Angstrom to .gro's nm (divide by 10).
+ *
+ * The box vector line is always written as a fixed placeholder ("10 10
+ * 10"), not the real extent of the structure — this is a real
+ * simplification, not a computed value, since the mapping tool has no
+ * concept of a simulation box. Callers piping this into GROMACS should
+ * replace that line with an appropriate box for their system.
+ * @param {object} collection - BeadCollection
+ * @returns {string}
+ */
 export function generateGRO(collection) {
     let resid = "    0";
     let resname = "";
@@ -99,7 +161,13 @@ export function generateGRO(collection) {
     return output;
 }
 
-/* Taken from <https://ourcodeworld.com/articles/read/189/how-to-create-a-file-and-generate-a-download-with-javascript-in-the-browser-without-a-server> */
+/**
+ * Trigger a browser file download of plain text, with no server involved —
+ * a throwaway `<a download>` link clicked programmatically. Adapted from
+ * <https://ourcodeworld.com/articles/read/189/how-to-create-a-file-and-generate-a-download-with-javascript-in-the-browser-without-a-server>.
+ * @param {string} filename
+ * @param {string} text
+ */
 export function download(filename, text) {
     let element = document.createElement('a');
     element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
@@ -110,6 +178,14 @@ export function download(filename, text) {
     document.body.removeChild(element);
 }
 
+/**
+ * Copy text to the clipboard, using the async Clipboard API when available
+ * (requires a secure context — HTTPS or localhost) and falling back to the
+ * legacy `document.execCommand("copy")` trick (a hidden, focused, selected
+ * textarea) otherwise, e.g. when the app is served over plain HTTP.
+ * @param {string} text
+ * @returns {Promise<void>}
+ */
 export function copyTextToClipboard(text) {
     if (navigator.clipboard && window.isSecureContext) {
         return navigator.clipboard.writeText(text);
@@ -130,6 +206,16 @@ export function copyTextToClipboard(text) {
     return Promise.resolve();
 }
 
+/**
+ * Atom names from a PDB/PQR-style file, read directly from columns 13-16
+ * of every ATOM/HETATM record, in file order. Bypasses NGL's own structure
+ * parsing entirely — this exists only to capture the EXACT original name
+ * strings (NGL's parsed `atom.atomname` isn't guaranteed to match the
+ * source file byte-for-byte), for BeadCollection.atomName's index-keyed
+ * lookup (see setOriginalAtomNames in bead.js) to fall back to.
+ * @param {string} content - raw file text
+ * @returns {Array<string>} one name per ATOM/HETATM line, in file order
+ */
 function parsePDBAtomNames(content) {
     const names = [];
     const lines = content.split(/\r?\n/);
@@ -141,6 +227,14 @@ function parsePDBAtomNames(content) {
     return names;
 }
 
+/**
+ * Atom names from a .gro file, read directly from columns 11-15 of each
+ * atom line (same rationale as parsePDBAtomNames — capture the original
+ * strings independent of NGL's own parsing). The atom count on line 2
+ * bounds how many of the following lines are read as atom records.
+ * @param {string} content - raw file text
+ * @returns {Array<string>} one name per atom line, in file order
+ */
 function parseGROAtomNames(content) {
     const names = [];
     const lines = content.split(/\r?\n/);
@@ -154,6 +248,12 @@ function parseGROAtomNames(content) {
     return names;
 }
 
+/**
+ * Dispatch to the right original-atom-name parser by file extension.
+ * @param {string} content - raw file text
+ * @param {string} filename - used only for its extension
+ * @returns {Array<string>} empty array for unrecognised extensions
+ */
 function parseOriginalAtomNames(content, filename) {
     const lower = (filename || "").toLowerCase();
     if (lower.endsWith(".pdb") || lower.endsWith(".ent")) return parsePDBAtomNames(content);
@@ -161,6 +261,17 @@ function parseOriginalAtomNames(content, filename) {
     return [];
 }
 
+/**
+ * Read a just-uploaded File's original atom names (see
+ * parseOriginalAtomNames), for BeadCollection.setOriginalAtomNames.
+ * Gzipped files are skipped (returns no names, not an error) since this
+ * reads plain text directly rather than decompressing. Never rejects —
+ * any read/parse failure resolves to an empty array, since this is a
+ * best-effort enhancement (falling back to NGL's own atom names) rather
+ * than something the rest of loading should fail on.
+ * @param {File} file
+ * @returns {Promise<Array<string>>}
+ */
 export function readOriginalAtomNames(file) {
     const lower = (file && file.name ? file.name : "").toLowerCase();
     if (lower.endsWith(".gz")) return Promise.resolve([]);
@@ -169,6 +280,17 @@ export function readOriginalAtomNames(file) {
         .catch(() => []);
 }
 
+/**
+ * Parse a pasted Shaker assignments dict literal (the format
+ * generatePythonAssignments produces, see its comment) back into bead
+ * definitions, for the "Load mapping" feature. Regex-based rather than a
+ * real Python/JSON parser — deliberately tolerant of the exact dict-literal
+ * syntax Shaker uses (single-quoted atom names, a bare resname wrapper)
+ * rather than requiring strict JSON. Bead order in the result follows
+ * occurrence order in the text, not any field in the dict itself.
+ * @param {string} text - pasted Shaker `mapping = {...}` text
+ * @returns {Array<{name: string, type: string, charge: number, atoms: Array<string>}>}
+ */
 export function parseShakerMapping(text) {
     const beads = [];
     // Matches each bead line: "NAME": {"type": "T", "charge": 0, "atoms": ['A1', 'A2']}
@@ -181,6 +303,17 @@ export function parseShakerMapping(text) {
     return beads;
 }
 
+/**
+ * NGL "ball+stick" representation params with multiple-bond rendering
+ * turned on, so a resolved double/triple bond (see chemistry.js's
+ * perceiveChemistry, written back onto the structure's BondProxy.bondOrder)
+ * actually displays as parallel sticks instead of NGL's default single
+ * line regardless of order. `overrides` is merged in on top, last, so
+ * callers can adjust individual params (e.g. color, opacity) without
+ * losing the multiple-bond defaults.
+ * @param {object} [overrides]
+ * @returns {object} NGL representation parameters
+ */
 export function bondAwareRepresentationParams(overrides = {}) {
     return Object.assign({ multipleBond: true, bondSpacing: 1, bondScale: 0.4 }, overrides);
 }
