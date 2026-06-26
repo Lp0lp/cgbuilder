@@ -1,5 +1,18 @@
+/* ===========================================================================
+   RDKit.js loader
+   ===========================================================================
+   Loads RDKit_minimal lazily on first use. Bead-type prediction is the only
+   feature that needs it, so most page loads never pay for it at all. */
+
 let _rdkitPromise = null;
 
+/**
+ * Load RDKit_minimal from the unpkg CDN and initialize its WASM module,
+ * caching the result so subsequent calls return the same resolved instance
+ * instantly rather than re-injecting the script tag. Also reuses
+ * `window.RDKit` if some other code already loaded it first.
+ * @returns {Promise<object>} resolves to the initialized RDKit module
+ */
 export function loadRDKit() {
     if (_rdkitPromise) return _rdkitPromise;
     _rdkitPromise = new Promise((resolve, reject) => {
