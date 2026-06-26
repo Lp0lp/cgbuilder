@@ -646,7 +646,7 @@ details[open] .atom-list-summary::before {
     color: var(--sasa-bad);
 }
 
-#multi-residue-warning {
+#beadlist > .output-warning {
     margin: 8px 12px 0;
 }
 
