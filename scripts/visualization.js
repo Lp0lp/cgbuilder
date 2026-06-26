@@ -1,7 +1,7 @@
 import { buildCanonTable, determineBeadType } from './prediction.js';
 import {
     perceiveChemistry, fragmentToSmiles, beadDonorCount, countResidues,
-    heavyAtomWeight, weightedHeavyAtomCount,
+    heavyAtomWeight, weightedHeavyAtomCount, cappedHeteroatoms,
 } from './chemistry.js';
 import { PROBE_RADIUS, aaSASA, cgSASA, beadsToPDB } from './sasa.js';
 import { generateNDX, generateMap, generateGRO, generatePythonAssignments,
@@ -488,7 +488,36 @@ export class Visualization {
         this.updatePY();
         this.updateSASA();
         this.updateMappingStats();
+        this.updateCappedHeteroatomWarning();
         this.drawCG();
+    }
+
+    // Beads whose boundary cuts through a heteroatom (N/O/S/P) bond — capping
+    // that bond with hydrogen during fragment construction can make a real
+    // ether/amine/thioether look like a different, more terminal group than
+    // it actually is (see chemistry.js's cappedHeteroatoms). Purely
+    // structural, so this is shown regardless of chemistry.available.
+    updateCappedHeteroatomWarning() {
+        const el = document.getElementById('capped-heteroatom-warning');
+        if (!el) return;
+
+        const names = [];
+        for (const bead of this.collection.beads) {
+            if (bead.atoms.length === 0) continue;
+            if (cappedHeteroatoms(bead.atoms).length > 0) names.push(bead.name);
+        }
+
+        if (names.length === 0) {
+            el.hidden = true;
+            return;
+        }
+        el.hidden = false;
+        const plural = names.length > 1;
+        el.textContent = `⚠ Bead${plural ? 's' : ''} ${names.join(', ')} `
+            + `${plural ? 'have' : 'has'} a bond crossing the bead boundary at a heteroatom `
+            + `(N/O/S/P) — predictions may reflect a more terminal group (e.g. an alcohol or `
+            + `primary amine) than the real, larger functional group. Consider keeping the `
+            + `whole group in one bead.`;
     }
 
     updateMappingStats() {

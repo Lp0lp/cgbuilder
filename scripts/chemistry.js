@@ -595,6 +595,44 @@ export function beadDonorCount(bead, chemistry) {
     return donors;
 }
 
+// Heteroatoms whose H-capped representation (see fragmentToSmiles) can read
+// as a different, more terminal group than the real structure — an ether
+// capped at the O looks like an alcohol, a secondary amine capped at the N
+// looks like primary, a thioether like a thiol. Carbon doesn't have this
+// problem (a capped alkyl chain still reads as an alkyl chain), so it's
+// excluded.
+const _CAPPING_SENSITIVE = new Set(['N', 'O', 'S', 'P']);
+
+/**
+ * Heteroatoms (N/O/S/P) in a bead that have at least one bond leaving the
+ * bead to another heavy atom — i.e. a bead boundary that cuts through a
+ * functional group rather than containing it whole. Purely structural (only
+ * needs atom.eachBond), independent of perceiveChemistry/chemistry.available,
+ * so it stays useful even without explicit hydrogens. Used to surface a
+ * "this bead may be chopping a chemical group" warning.
+ * @param {Array} beadAtoms - atom proxies in the bead
+ * @returns {Array} the offending atom proxies (empty if none)
+ */
+export function cappedHeteroatoms(beadAtoms) {
+    const atomSet = new Set(beadAtoms.map((a) => a.index));
+    const result = [];
+    for (const atom of beadAtoms) {
+        const el = (atom.element || '').toUpperCase();
+        if (!_CAPPING_SENSITIVE.has(el) || typeof atom.eachBond !== 'function') continue;
+        const structure = atom.structure;
+        let capped = false;
+        atom.eachBond((bond) => {
+            const i1 = bond.atomIndex1, i2 = bond.atomIndex2;
+            const otherIdx = i1 === atom.index ? i2 : (i2 === atom.index ? i1 : -1);
+            if (otherIdx < 0 || atomSet.has(otherIdx)) return;
+            const other = structure.getAtomProxy(otherIdx);
+            if ((other.element || '').toUpperCase() !== 'H') capped = true;
+        });
+        if (capped) result.push(atom);
+    }
+    return result;
+}
+
 /**
  * Count distinct residues in a structure (by resno+chain, falling back to
  * resno alone), for surfacing a "this structure has more than one residue"
