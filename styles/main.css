@@ -664,18 +664,8 @@ details[open] .atom-list-summary::before {
 }
 
 /* ================================
-   INFO BOX + FOOTNOTE
+   INFO FOOTNOTE
 ================================ */
-
-.info-box {
-    padding: 12px 14px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--bg-surface);
-    font-size: 0.92em;
-    line-height: 1.35em;
-    box-sizing: border-box;
-}
 
 .info-footnote {
     font-size: 12px;
@@ -885,13 +875,6 @@ button.copied {
     letter-spacing: 0.07em;
     color: var(--text-muted);
     margin-bottom: 2px;
-}
-
-
-.sasa-divider {
-    border: none;
-    border-top: 1px solid var(--border-input);
-    margin: 4px 0 2px;
 }
 
 .sasa-row {
