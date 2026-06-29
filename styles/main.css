@@ -273,20 +273,27 @@ body {
 }
 
 .doc-content details.nested {
-    border: 1px solid var(--border-input);
-    border-radius: 4px;
-    margin: 8px 0 4px;
+    border: none;
+    border-left: 3px solid var(--border-input);
+    border-radius: 0;
+    margin: 0;
+    padding-left: 14px;
+}
+
+.doc-content details.nested + details.nested {
+    border-top: 1px solid var(--border-light);
+    padding-top: 2px;
 }
 
 .doc-content details.nested > summary {
-    font-size: 13px;
-    font-weight: 500;
-    padding: 8px 12px;
-    background: var(--bg-page);
+    font-size: 15px;
+    font-weight: 600;
+    padding: 10px 0;
+    background: none;
 }
 
 .doc-content details.nested > *:not(summary) {
-    padding: 10px 12px;
+    padding: 0 0 14px;
 }
 
 .doc-content h1 {
@@ -298,6 +305,9 @@ body {
 }
 
 .doc-content h2 {
+    display: flex;
+    align-items: center;
+    gap: 9px;
     font-size: 16px;
     font-weight: 600;
     margin: 32px 0 10px;
@@ -305,6 +315,104 @@ body {
     padding-bottom: 6px;
     border-bottom: 1px solid var(--border);
 }
+
+.doc-content h2 svg {
+    flex-shrink: 0;
+    color: var(--color-primary);
+}
+
+.doc-content .toc {
+    margin: 0 0 28px;
+    padding: 14px 18px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-surface);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.doc-content .toc-title {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+}
+
+.doc-content .toc ol {
+    margin: 0;
+    padding-left: 18px;
+    columns: 2;
+}
+
+/* ================================
+   CALLOUT BOXES (DOC PAGES)
+================================ */
+
+.callout {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 12px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    margin: 14px 0;
+    font-size: 0.95em;
+    line-height: 1.55;
+}
+
+.callout svg {
+    flex-shrink: 0;
+    margin-top: 3px;
+}
+
+.callout p {
+    margin: 0;
+}
+
+.callout-warning {
+    background: color-mix(in srgb, var(--sasa-warn) 8%, var(--bg-surface));
+    border-color: var(--sasa-warn);
+}
+
+.callout-warning svg {
+    color: var(--sasa-warn);
+}
+
+.callout-note {
+    background: var(--chip-bg);
+    border-color: var(--chip-border);
+}
+
+.callout-note svg {
+    color: var(--chip-text);
+}
+
+/* ================================
+   BEAD TYPE COLOR SWATCHES (DOC PAGES)
+================================ */
+
+.color-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 5px;
+    vertical-align: middle;
+}
+
+/* Matches typeColor() in visualization.js exactly. */
+.color-dot-c { background: #8c8c8c; } /* apolar */
+.color-dot-n { background: #4a8fd9; } /* intermediate */
+.color-dot-p { background: #e84d3d; } /* polar */
+.color-dot-q { background: #f29c12; } /* charged */
+.color-dot-x { background: #2ecc70; } /* halogen */
+
+/* Matches the Mapping panel's Mismatch indicator (sasa-diff-good/-warn/-bad). */
+.color-dot-good { background: var(--sasa-good); }
+.color-dot-warn { background: var(--sasa-warn); }
+.color-dot-bad  { background: var(--sasa-bad); }
 
 .doc-content ol,
 .doc-content ul:not(.ref-list) {
@@ -630,27 +738,42 @@ details[open] .atom-list-summary::before {
 .output-warning {
     padding: 6px 10px;
     margin-bottom: 6px;
-    background: color-mix(in srgb, var(--sasa-bad) 10%, var(--bg-surface));
-    border: 1px solid var(--sasa-bad);
+    background: color-mix(in srgb, var(--sasa-warn) 10%, var(--bg-surface));
+    border: 1px solid var(--sasa-warn);
     border-radius: 6px;
     font-size: 12px;
-    color: var(--sasa-bad);
+    color: var(--sasa-warn);
     font-weight: 500;
 }
 
-/* ================================
-   INFO BOX + FOOTNOTE
-================================ */
-
-.info-box {
-    padding: 12px 14px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--bg-surface);
-    font-size: 0.92em;
-    line-height: 1.35em;
-    box-sizing: border-box;
+/* A genuine error (output will definitely be wrong/faulty), as opposed to
+   the orange default above (an advisory condition worth checking). */
+.output-warning.output-error {
+    background: color-mix(in srgb, var(--sasa-bad) 10%, var(--bg-surface));
+    border-color: var(--sasa-bad);
+    color: var(--sasa-bad);
 }
+
+#beadlist > .output-warning {
+    margin: 8px 12px 0;
+}
+
+.hint-text {
+    margin: 8px 12px 0;
+    font-size: 12px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.hint-text svg {
+    flex-shrink: 0;
+}
+
+/* ================================
+   INFO FOOTNOTE
+================================ */
 
 .info-footnote {
     font-size: 12px;
@@ -860,13 +983,6 @@ button.copied {
     letter-spacing: 0.07em;
     color: var(--text-muted);
     margin-bottom: 2px;
-}
-
-
-.sasa-divider {
-    border: none;
-    border-top: 1px solid var(--border-input);
-    margin: 4px 0 2px;
 }
 
 .sasa-row {

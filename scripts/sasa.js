@@ -1,6 +1,32 @@
 /* ===========================================================================
    Solvent-accessible surface area (SASA)
    ===========================================================================
+   Numerical SASA via the Shrake-Rupley algorithm (Shrake & Rupley, 1973,
+   https://doi.org/10.1016/0022-2836(73)90011-9 ): for every atom/bead, sample
+   points on a sphere expanded by the solvent probe radius, count the
+   fraction not buried inside any neighbour's own probe-expanded sphere, and
+   scale by that sphere's area. Summed over all particles, this gives a
+   numerical estimate of the true analytical SASA without needing exact
+   sphere-sphere intersection geometry (see shrakeRupley for the per-atom
+   detail).
+
+   This is computed independently for the all-atom structure (aaSASA) and
+   for the coarse-grained bead representation (cgSASA), using the SAME probe
+   radius and algorithm for both, so the resulting Å² values are directly
+   comparable — that comparison (the Mapping panel's SASA Δ) is the actual
+   point of this module. That numerical computation is entirely independent
+   of NGL's own "surface" representation (the translucent mesh toggled in
+   the viewer) — every Å² value comes from the hand-implemented shrakeRupley
+   below, not from NGL.
+
+   This file also bridges to that NGL visual surface, though, via
+   beadsToPDB: it reuses the same per-bead radius (BEAD_RADII/beadRadius)
+   the numerical cgSASA uses, but writes it into a synthetic PDB's
+   temperature-factor column so NGL's renderer can read individual bead
+   radii back out (see beadsToPDB's own comment for the mechanism). So the
+   two halves of this file share their radius data, even though the
+   numbers and the visual mesh are computed by entirely different code.
+
    Probe radius in Angstrom. 0.191 nm = 1.91 Å is the Martini tiny-bead radius,
    used here so the AA and CG surfaces are computed with the same probe and are
    directly comparable. */
@@ -18,6 +44,13 @@ export const BEAD_RADII = {
 };
 const DEFAULT_BEAD_SIZE = "R";
 
+/**
+ * The Martini size-class letter (R/S/T/U) implied by a bead type string,
+ * read from its first character — e.g. "SP2a" -> "S", "TC5" -> "T", a plain
+ * "P2" (no size prefix) -> the "R" (regular) default.
+ * @param {string} type - bead type code, e.g. "SP2a"
+ * @returns {string} one of "R", "S", "T", "U"
+ */
 export function beadSizeClass(type) {
     if (!type) return DEFAULT_BEAD_SIZE;
     const first = type.trim().charAt(0).toUpperCase();
@@ -25,19 +58,30 @@ export function beadSizeClass(type) {
     return DEFAULT_BEAD_SIZE;
 }
 
+/**
+ * The Martini vdW radius (Å) for a bead, from its type's size class.
+ * @param {object} bead - has a `type` string (e.g. "SP2a")
+ * @returns {number} radius in Angstrom (0 for virtual "U" beads)
+ */
 export function beadRadius(bead) {
     return BEAD_RADII[beadSizeClass(bead.type)];
 }
 
-// Standard Bondi vdW radii (Angstrom) for elements found in organic molecules.
+// Standard vdW radii (Angstrom) for elements found in organic molecules.
 const VDW_RADII = {
     H: 1.09, C: 1.75, N: 1.61, O: 1.56, F: 1.44,
     P: 1.80, S: 1.79, CL: 1.74, BR: 1.85, I: 2.00,
 };
 const DEFAULT_VDW_RADIUS = 1.75;
 
-// Fibonacci golden-ratio lattice — generates n near-uniformly distributed
-// points on the unit sphere.
+/**
+ * Fibonacci golden-ratio lattice — n near-uniformly distributed points on
+ * the unit sphere, used by shrakeRupley as the fixed set of sample
+ * directions tested around every atom. Deterministic (no RNG), so repeated
+ * calls with the same n always sample the same directions.
+ * @param {number} n - number of points to generate
+ * @returns {Array<[number,number,number]>} unit-length [x,y,z] points
+ */
 function fibonacciSpherePoints(n) {
     const pts = new Array(n);
     const phi = Math.PI * (3 - Math.sqrt(5));
@@ -50,8 +94,27 @@ function fibonacciSpherePoints(n) {
     return pts;
 }
 
-// Shrake-Rupley numerical SASA in Å².
-// particles: array of [x, y, z, vdwRadius] in Angstrom.
+/**
+ * Numerical SASA (Å²) via Shrake-Rupley: for each particle i, place nPoints
+ * test points on a sphere of radius (vdwRadius_i + probeRadius) centred on
+ * it — this is the surface the centre of a solvent probe sphere could touch
+ * while still contacting atom i. A test point is "buried" if it falls
+ * inside ANY other particle j's own probe-expanded sphere (i.e. the probe
+ * centred there would simultaneously overlap j), meaning solvent can't
+ * actually reach that point while resting against i. The fraction of test
+ * points that are NOT buried, times the full sphere area, is i's
+ * contribution; summing over every particle gives the total SASA.
+ *
+ * The inner neighbour search first prunes to particles whose probe-expanded
+ * spheres could possibly overlap i's own (a generous distance cutoff),
+ * before testing individual sample points against only that shortlist —
+ * an O(n²) neighbour pass plus O(n_neighbours × nPoints) point tests per
+ * particle, not a full O(n² × nPoints).
+ * @param {Array<[number,number,number,number]>} particles - [x,y,z,vdwRadius] in Angstrom
+ * @param {number} probeRadius - solvent probe radius in Angstrom
+ * @param {number} [nPoints] - sample points per particle (more = smoother, slower)
+ * @returns {number} total SASA in Å²
+ */
 export function shrakeRupley(particles, probeRadius, nPoints = 4800) {
     const n = particles.length;
     if (n === 0) return 0;
@@ -62,13 +125,17 @@ export function shrakeRupley(particles, probeRadius, nPoints = 4800) {
         const [xi, yi, zi, ri] = particles[i];
         const shellR = ri + probeRadius;
 
+        // Each neighbour's coordinates/cutoff are fixed regardless of which
+        // sample point is being tested, so they're resolved once here rather
+        // than re-derived from `particles[j]` on every one of the nPoints
+        // iterations below.
         const neighbors = [];
         for (let j = 0; j < n; j++) {
             if (j === i) continue;
             const [xj, yj, zj, rj] = particles[j];
             const cutoff = shellR + rj + probeRadius;
             const dx = xi - xj, dy = yi - yj, dz = zi - zj;
-            if (dx*dx + dy*dy + dz*dz < cutoff*cutoff) neighbors.push(j);
+            if (dx*dx + dy*dy + dz*dz < cutoff*cutoff) neighbors.push([xj, yj, zj, rj + probeRadius]);
         }
 
         let exposed = 0;
@@ -77,9 +144,7 @@ export function shrakeRupley(particles, probeRadius, nPoints = 4800) {
             const py = yi + shellR * uy;
             const pz = zi + shellR * uz;
             let buried = false;
-            for (const j of neighbors) {
-                const [xj, yj, zj, rj] = particles[j];
-                const cutoff = rj + probeRadius;
+            for (const [xj, yj, zj, cutoff] of neighbors) {
                 const dx = px - xj, dy = py - yj, dz = pz - zj;
                 if (dx*dx + dy*dy + dz*dz < cutoff*cutoff) { buried = true; break; }
             }
@@ -90,6 +155,13 @@ export function shrakeRupley(particles, probeRadius, nPoints = 4800) {
     return totalSASA;
 }
 
+/**
+ * Whole-structure SASA (Å²) for the all-atom representation, using
+ * vdW radii per element.
+ * @param {object} structure - NGL-style structure (eachAtom)
+ * @param {number} probeRadius - solvent probe radius in Angstrom
+ * @returns {number}
+ */
 export function aaSASA(structure, probeRadius) {
     const particles = [];
     structure.eachAtom((atom) => {
@@ -100,6 +172,16 @@ export function aaSASA(structure, probeRadius) {
     return shrakeRupley(particles, probeRadius);
 }
 
+/**
+ * Whole-mapping SASA (Å²) for the coarse-grained bead representation, using
+ * each bead's own Martini size-class radius (see beadRadius) centred at its
+ * geometric centre. Empty beads and zero-radius "U" (virtual) beads
+ * contribute no surface and are skipped.
+ * @param {object} collection - BeadCollection (has a `beads` array)
+ * @param {number} probeRadius - solvent probe radius in Angstrom (same
+ *   value as used for aaSASA, so the two totals are comparable)
+ * @returns {number}
+ */
 export function cgSASA(collection, probeRadius) {
     const particles = [];
     for (const bead of collection.beads) {
@@ -112,16 +194,39 @@ export function cgSASA(collection, probeRadius) {
     return shrakeRupley(particles, probeRadius);
 }
 
-// Pad an atom name into PDB columns 13-16.
+/**
+ * Pad an atom name into PDB columns 13-16.
+ * @param {string} name
+ * @returns {string} exactly 4 characters
+ */
 function formatPDBAtomName(name) {
     name = (name || "").substring(0, 4);
     if (name.length >= 4) return name;
     return (" " + name).padEnd(4);
 }
 
-// Serialise the CG beads to a minimal PDB string, one ATOM per bead, with the
-// bead vdW radius stored in the temperature-factor column (cols 61-66). Beads
-// with no atoms or a zero radius (virtual "U" beads) are skipped.
+/**
+ * Serialise the CG beads to a minimal PDB string, one ATOM per bead, with
+ * the bead's own Martini vdW radius stored in the temperature-factor column
+ * (cols 61-66). Exists so the CG representation can be loaded into NGL as a
+ * real structure and given its own "surface" representation (the visual
+ * toggle in the viewer) the same way the all-atom structure has — NGL has
+ * no native concept of a "bead", so this fakes a PDB it already knows how
+ * to render.
+ *
+ * The temperature-factor placement specifically is the trick that makes
+ * per-bead radii (R/S/T are different sizes) work in NGL's surface
+ * renderer at all: NGL's "surface" representation normally derives radius
+ * from the atom's element, which would force every bead to the same size.
+ * Passing `radiusType: "bfactor"` in the representation params (see
+ * drawCGSurface in visualization.js, the only caller of this function)
+ * tells NGL to read each atom's per-bead radius straight back out of the
+ * column this function just wrote it into, instead.
+ *
+ * Beads with no atoms or a zero radius (virtual "U" beads) are skipped.
+ * @param {object} collection - BeadCollection (has a `beads` array)
+ * @returns {string} PDB-format text (empty string if no beads qualify)
+ */
 export function beadsToPDB(collection) {
     let lines = [];
     let serial = 0;

@@ -1,0 +1,25 @@
+{
+  "name": "cgbuilder",
+  "version": "1.0.0",
+  "description": "CGBuilder — Visual tool to build CG molecule models",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Lp0lp/cgbuilder.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Lp0lp/cgbuilder/issues"
+  },
+  "homepage": "https://github.com/Lp0lp/cgbuilder#readme",
+  "devDependencies": {
+    "vitest": "^4.1.9"
+  }
+}

@@ -1,14 +1,37 @@
 /* ===========================================================================
-   Bead type prediction — AutoMartini M3 port
+   Bead type prediction — inspired by AutoMartini M3
    ===========================================================================
+   Maps one fragment's physicochemical properties to a specific Martini 3
+   bead type code (e.g. "SP2a"), largely inspired by AutoMartini's own
+   determine_bead_type() logic (Szczuka et al. 2025, 
+   https://doi.org/10.1021/acs.jctc.5c01178; reference implementation 
+   https://github.com/Martini-Force-Field-Initiative/Automartini_M3/tree/main ):
+
+     1. A free energy of transfer (deltaF, kJ/mol) for the fragment is
+        looked up in FRAG_DELTA_F/ION_DELTA_F (via buildCanonTable's
+        RDKit-canonicalized lookup), or falls back to a Crippen-logP-derived
+        estimate when no table entry matches (computed by the caller, not
+        in this file).
+     2. determineBeadType picks a size prefix (T/S/none="regular") from the
+        fragment's weighted heavy-atom count, with a ring/branch downgrade
+        rule (see its own comment).
+     3. It picks a candidate list of bead-type codes from charge and H-bond
+        donor/acceptor pattern: divalent+ charge -> D, monovalent charge ->
+        the Q1-Q5 ladder, pure acceptor/donor -> the "a"/"d"-suffixed
+        series, anything else -> the plain C/N/P series.
+     4. _closestType searches that candidate list against DELTA_F (the
+        literature-calibrated reference free energy for every real bead
+        type) and returns whichever candidate's own deltaF is numerically
+        closest to the fragment's.
+     5. A halogen-containing fragment overrides the result with the X1-X4
+        series regardless of any of the above, matching AutoMartini.
+
    Fragment → delta_f (kJ/mol) lookup table — the full AutoMartini M3
-   logP_smi_extended.dat (data/logP_smi_extended.dat), with duplicate keys
-   resolved by FIRST occurrence (the original calibrated value; later duplicates
-   are AutoMartini's dict-overwrite bug). Keys are kept verbatim in AutoMartini's
+   logP_smi_extended.dat. Keys are kept verbatim in AutoMartini's
    notation: lowercase = aromatic atoms, uppercase = aliphatic; many are
    open-chain aromatic SMILES ("cc", "cn", "ncs") that RDKit cannot parse — these
    are matched directly against the aromatic-notation fragment key (see
-   buildCanonTable / onPredictTypes). Do NOT "canonicalise" or hand-edit values. */
+   buildCanonTable / onPredictTypes). */
 const FRAG_DELTA_F = {
     "CC":12.0, "CCC":14.2, "CCCC":18.9, "CC(C)(C)C":18.9,
     "C=C":6.4, "C=CC":8.4, "CC=C":8.4, "CCc":8.4,
@@ -101,8 +124,50 @@ const FRAG_DELTA_F = {
     "cccO":-4.2,
 };
 
-/* Free energies of transfer (kJ/mol) for all Martini 3 bead types.
-   Source: Souza et al. 2021 (https://doi.org/10.1038/s41592-021-01098-3). */
+/* Common charged ions/functional groups — NOT from AutoMartini's table, our
+   own additions, kept separate from FRAG_DELTA_F above so the verbatim
+   AutoMartini data stays traceable.
+
+   deltaF computed via Crippen logP collapses charged fragments to the same
+   Q1/SQ1/TQ1 tier almost regardless of group (it's not calibrated for ionic
+   species at all — verified empirically). These entries sidestep that:
+   each deltaF value is chosen to land EXACTLY on the reference value of the
+   plain Q-tier (size prefix handled separately, same dynamic logic as every
+   other bead) that the Martini 3 SI lists for that ion/group, per its
+   "Ions" table. Several of these are genuinely n/p-labelled in the SI
+   (e.g. carboxylate -> Q5n, ammonium -> Q5p); the polarity label is
+   dropped here since DELTA_F has no n/p reference values and
+   determineBeadType doesn't search n/p candidates — landing on the right
+   plain tier is a closer prediction than collapsing to Q1, and the user can
+   add the label by hand. Chain-length variants are enumerated explicitly
+   (not pattern-matched) since Martini beads only ever cover ~2-5 heavy
+   atoms, a small, fully enumerable space. */
+const ION_DELTA_F = {
+    "[NH4+]":-17.0,
+    "C[NH3+]":-16.3, "CC[NH3+]":-18.2, "CCC[NH3+]":-18.8, "CCCC[NH3+]":-18.8,
+    "C[NH2+]C":-18.0, "CC[NH2+]C":-17.4, "CCC[NH2+]C":-17.4,
+    "C[NH+](C)C":-14.3, "CC[NH+](C)C":-15.1,
+    "C[N+](C)(C)C":-15.1, "C[N+](C)(C)CC":-10.9,
+    "C[P+](C)(C)C":-10.9,
+    "NC(=[NH2+])N":-18.0,
+    "[O-]C=O":-18.2, "CC(=O)[O-]":-18.2, "CCC(=O)[O-]":-23.0,
+    "CS(=O)(=O)[O-]":-18.8,
+    "[O-]P(=O)(O)O":-23.0,
+    "[B-](F)(F)(F)F":-15.1,
+    "[P-](F)(F)(F)(F)(F)F":-10.9,
+    "[S-]C#N":-10.6,
+    "[N+](=O)([O-])[O-]":-18.0,
+    "[O-]Cl(=O)(=O)=O":-15.1,
+};
+
+/* Reference free energy of transfer (kJ/mol) for every standard Martini 3
+   bead type, keyed by its type code (e.g. "SP2a"). This is the table
+   _closestType searches to turn a fragment's own deltaF into the
+   nearest-matching real bead type. Source: Souza et al. 2021
+   (https://doi.org/10.1038/s41592-021-01098-3).
+   Note: SQ4 and SQ5 share the exact same value (-18.2) — the only exact
+   tie anywhere in this table; see determineBeadType's Q-series ordering
+   comment for how that tie is resolved. */
 const DELTA_F = {
     C1:18.9, C2:14.8, C3:13.8, C4:13.4, C5:11.2, C6:10.1,
     N1:8.1,  N2:5.6,  N3:1.8,  N4:2.2,  N5:0.0,  N6:-1.1,
@@ -135,34 +200,53 @@ const DELTA_F = {
     TQ1:-14.2, TQ2:-14.5, TQ3:-18.7, TQ4:-16.3, TQ5:-17.0, TD:-36.8,
 };
 
-// Build a canonicalized version of FRAG_DELTA_F using RDKit to normalize SMILES.
-// Called once per predict session. Keys in the original table may be in aromatic
-// notation (e.g. "cc") or non-canonical form; this ensures the lookup always
-// succeeds when comparing against RDKit-canonicalized fragment SMILES.
+/**
+ * Canonicalize every key in FRAG_DELTA_F/ION_DELTA_F through RDKit, so a
+ * fragment's own RDKit-canonical SMILES can be looked up directly instead
+ * of needing to match the table's original (often non-canonical) notation.
+ * Open-chain aromatic keys ("cc", "cn", ...) that RDKit can't parse at all
+ * are kept verbatim, for direct string-matching against the aromatic-
+ * notation fragment key instead (see fragmentToSmiles's aromaticNotation
+ * option in chemistry.js). Called once per predict session, not per bead.
+ * @param {object} RDKit - the loaded RDKit_minimal module (see rdkit.js)
+ * @returns {Object<string,number>} canonical (or verbatim, for aromatic-
+ *   notation keys) SMILES -> deltaF (kJ/mol)
+ */
 export function buildCanonTable(RDKit) {
     const result = {};
-    for (const [smi, df] of Object.entries(FRAG_DELTA_F)) {
-        try {
-            const mol = RDKit.get_mol(smi);
-            if (!mol) {
-                // Open-chain aromatic SMILES like "cc", "ccc" are invalid for
-                // RDKit (no ring to close) but are legitimate AutoMartini table
-                // keys. Keep them as-is for direct lookup by aromatic fragments.
+    for (const table of [FRAG_DELTA_F, ION_DELTA_F]) {
+        for (const [smi, df] of Object.entries(table)) {
+            try {
+                const mol = RDKit.get_mol(smi);
+                if (!mol) {
+                    // Open-chain aromatic SMILES like "cc", "ccc" are invalid for
+                    // RDKit (no ring to close) but are legitimate AutoMartini table
+                    // keys. Keep them as-is for direct lookup by aromatic fragments.
+                    if (!(smi in result)) result[smi] = df;
+                    continue;
+                }
+                const canon = mol.get_smiles();
+                mol.delete();
+                if (canon && !(canon in result)) result[canon] = df;
+            } catch (_) {
+                // RDKit threw on an open-chain aromatic key — keep it verbatim so the
+                // aromatic-notation fragment lookup can still match it.
                 if (!(smi in result)) result[smi] = df;
-                continue;
             }
-            const canon = mol.get_smiles();
-            mol.delete();
-            if (canon && !(canon in result)) result[canon] = df;
-        } catch (_) {
-            // RDKit threw on an open-chain aromatic key — keep it verbatim so the
-            // aromatic-notation fragment lookup can still match it.
-            if (!(smi in result)) result[smi] = df;
         }
     }
     return result;
 }
 
+/**
+ * The candidate bead type (from `candidates`) whose own reference deltaF
+ * (looked up in DELTA_F) is numerically closest to the fragment's deltaF.
+ * On an exact tie, the FIRST candidate encountered wins — determineBeadType
+ * relies on this for its Q5-before-Q4 ordering (see its own comment).
+ * @param {number} deltaF - the fragment's free energy of transfer (kJ/mol)
+ * @param {Array<string>} candidates - bead type codes to search, in order
+ * @returns {string} the closest-matching candidate
+ */
 function _closestType(deltaF, candidates) {
     let best = candidates[0];
     let bestErr = Infinity;
@@ -174,53 +258,92 @@ function _closestType(deltaF, candidates) {
     return best;
 }
 
-// Port of AutoMartini M3 determine_bead_type().
-// deltaF: free energy of transfer (kJ/mol) — from table or Crippen conversion.
-// heavyCount: non-H atoms in bead; inRing: any bead atom is aromatic.
-export function determineBeadType({ deltaF, charge, hDonors, hAcceptors, hasHalogen, inRing, heavyCount }) {
-    const sz = heavyCount <= 2 ? 'T' : heavyCount === 3 ? 'S' : '';
+/**
+ * Apply a Martini size prefix (T/S/'') and H-bond suffix (a/d/'') to every
+ * bare code in `codes`, e.g. _series('S', ['N1','N2'], 'a') -> ['SN1a','SN2a'].
+ * Lets determineBeadType's per-size-class candidate lists be written once
+ * instead of by hand for every T/S/plain combination.
+ * @param {string} prefix - size class, 'T'/'S'/''
+ * @param {Array<string>} codes - bare bead-type codes, e.g. 'N1'
+ * @param {string} [suffix] - H-bond label, 'a'/'d'/''
+ * @returns {Array<string>}
+ */
+function _series(prefix, codes, suffix = '') {
+    return codes.map((c) => `${prefix}${c}${suffix}`);
+}
+
+const _NP_CODES = ['N1','N2','N3','N4','N5','N6','P1','P2','P3','P4','P5','P6'];
+const _PCN_CODES = ['P6','P5','P4','P3','P2','P1','C6','C5','C4','C3','C2','C1','N6','N5','N4','N3','N2','N1'];
+const _X_CODES = ['X4','X3','X2','X1'];
+
+/**
+ * Port of AutoMartini M3's determine_bead_type(): map one fragment's
+ * physicochemical properties to a specific Martini 3 bead type code. Picks
+ * a size prefix from weightedHeavyCount/ringOrBranched, then a candidate
+ * list of bead-type codes from charge and H-bond donor/acceptor pattern
+ * (see the module-level comment for the full decision order), and returns
+ * whichever candidate's own reference deltaF (in DELTA_F) is closest to
+ * this fragment's.
+ * @param {object} props
+ * @param {number} props.deltaF - free energy of transfer (kJ/mol) for this
+ *   fragment, from a table lookup or a Crippen-logP-derived estimate
+ * @param {number} props.charge - formal charge; |charge|>=2 forces a
+ *   D-bead, any other nonzero charge searches the Q1-Q5 ladder
+ * @param {number} props.hDonors - count of H-bond donor atoms in the bead
+ * @param {number} props.hAcceptors - count of H-bond acceptor atoms
+ * @param {boolean} props.hasHalogen - any bead atom is F/Cl/Br/I; overrides
+ *   every other branch below, matching AutoMartini
+ * @param {boolean} props.inRing - any bead atom is aromatic (gates TC5
+ *   eligibility only — TC5 is excluded from the tiny-C candidate list
+ *   unless the fragment is actually in a ring)
+ * @param {number} props.weightedHeavyCount - heavy-atom count, with
+ *   period>=4 atoms (Br/Se/I, ...) counted as 2, per the Martini 3 SI's
+ *   default bead-size convention
+ * @param {boolean} props.ringOrBranched - bead contains a ring atom or a
+ *   branch point (>=3 heavy neighbours) — downgrades a weighted count of 4
+ *   from R (regular) to S (small), matching the SI's "R for linear 4-1, S
+ *   for ring/branched" rule; weighted counts of 5/3/2 are unaffected
+ * @returns {string} the predicted bead type code, e.g. "SP2a"
+ */
+export function determineBeadType({
+    deltaF, charge, hDonors, hAcceptors, hasHalogen, inRing, weightedHeavyCount, ringOrBranched,
+}) {
+    let sz = weightedHeavyCount <= 2 ? 'T' : weightedHeavyCount === 3 ? 'S' : '';
+    if (sz === '' && weightedHeavyCount === 4 && ringOrBranched) sz = 'S';
     const p = sz;
 
     let result;
 
-    if (charge !== 0) {
-        result = _closestType(deltaF,
-            [`${p}Q1`,`${p}Q2`,`${p}Q3`,`${p}Q4`,`${p}Q5`,`${p}D`]);
+    if (Math.abs(charge) >= 2) {
+        // Divalent+ ions (Mg2+, Ca2+, phosphate2-, ...) are D-beads by Martini
+        // 3 convention regardless of deltaF -- the Q1-Q5 ladder is for
+        // monovalent charge only, and deltaF-based matching is unreliable
+        // for charged species anyway (verified empirically elsewhere).
+        result = `${p}D`;
+    } else if (charge !== 0) {
+        // Q5 before Q4: SQ4 and SQ5 are the only exact tie anywhere in
+        // DELTA_F (both -18.2). _closestType keeps whichever candidate it
+        // sees first on a tie, so this ordering picks Q5 there instead of
+        // Q4 -- harmless everywhere else, since no other deltaF value ties.
+        result = _closestType(deltaF, _series(p, ['Q1', 'Q2', 'Q3', 'Q5', 'Q4', 'D']));
     } else if (hAcceptors > 0 && hDonors === 0) {
         // Pure acceptor → 'a' label.
-        result = _closestType(deltaF, p === 'T'
-            ? ['TN1a','TN2a','TN3a','TN4a','TN5a','TN6a','TP1a','TP2a','TP3a','TP4a','TP5a','TP6a']
-            : p === 'S'
-            ? ['SN1a','SN2a','SN3a','SN4a','SN5a','SN6a','SP1a','SP2a','SP3a','SP4a','SP5a','SP6a']
-            : ['N1a','N2a','N3a','N4a','N5a','N6a','P1a','P2a','P3a','P4a','P5a','P6a']);
+        result = _closestType(deltaF, _series(p, _NP_CODES, 'a'));
     } else if (hDonors > 0 && hAcceptors === 0) {
         // Pure donor → 'd' label.
-        result = _closestType(deltaF, p === 'T'
-            ? ['TN1d','TN2d','TN3d','TN4d','TN5d','TN6d','TP1d','TP2d','TP3d','TP4d','TP5d','TP6d']
-            : p === 'S'
-            ? ['SN1d','SN2d','SN3d','SN4d','SN5d','SN6d','SP1d','SP2d','SP3d','SP4d','SP5d','SP6d']
-            : ['N1d','N2d','N3d','N4d','N5d','N6d','P1d','P2d','P3d','P4d','P5d','P6d']);
+        result = _closestType(deltaF, _series(p, _NP_CODES, 'd'));
     } else {
         // Either no H-bonding, OR both donor AND acceptor (a balanced group such
         // as an amide) → plain N/P/C series with no a/d label, matching Martini 3
         // where the a/d suffixes denote one-sided H-bonders only.
-        let cands;
-        if (p === 'T') {
-            cands = ['TP6','TP5','TP4','TP3','TP2','TP1','TC6','TC5','TC4','TC3','TC2','TC1','TN6','TN5','TN4','TN3','TN2','TN1'];
-            if (!inRing) cands = cands.filter(t => t !== 'TC5');
-        } else if (p === 'S') {
-            cands = ['SP6','SP5','SP4','SP3','SP2','SP1','SC6','SC5','SC4','SC3','SC2','SC1','SN6','SN5','SN4','SN3','SN2','SN1'];
-        } else {
-            cands = ['P6','P5','P4','P3','P2','P1','C6','C5','C4','C3','C2','C1','N6','N5','N4','N3','N2','N1'];
-        }
+        let cands = _series(p, _PCN_CODES);
+        if (p === 'T' && !inRing) cands = cands.filter((t) => t !== 'TC5');
         result = _closestType(deltaF, cands);
     }
 
     // Halogen overrides everything (same as AutoMartini)
     if (hasHalogen) {
-        result = _closestType(deltaF, p === 'T' ? ['TX4','TX3','TX2','TX1']
-                                    : p === 'S' ? ['SX4','SX3','SX2','SX1']
-                                    :              ['X4','X3','X2','X1']);
+        result = _closestType(deltaF, _series(p, _X_CODES));
     }
 
     return result;

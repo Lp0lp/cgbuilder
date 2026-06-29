@@ -7,7 +7,7 @@ This page collects resources that are commonly consulted when mapping, bead typi
 
 The Martini 3 non-bonded interaction matrix. Values indicate the interaction level between bead types (0 = hyper-attractive → 21 = super-repulsive).
 
-![Martini 3 interaction matrix](docs/img/martini3_matrix.png)
+![Martini 3 interaction matrix](content/img/martini3_matrix.png)
 
 <p class="info-footnote">Adapted from Souza, P.C.T. et al. (2021). Martini 3: a general purpose force field for coarse-grained molecular dynamics. <em>Nature Methods</em>, 18, 382–388. Supplementary Table 1. <a href="https://doi.org/10.1038/s41592-021-01098-3" target="_blank">doi:10.1038/s41592-021-01098-3</a></p>
 
@@ -84,7 +84,7 @@ Interaction level corrections applied on top of the base matrix when beads carry
 
 The flowchart below summarises the recommended mapping procedure for Martini 3 molecules.
 
-![Martini 3 mapping rules flowchart](docs/img/mapping_rules.png)
+![Martini 3 mapping rules flowchart](content/img/mapping_rules.png)
 
 <p class="info-footnote">Adapted from Souza, P.C.T. et al. (2021). Martini 3: a general purpose force field for coarse-grained molecular dynamics. <em>Nature Methods</em>, 18, 382–388. Supplementary Information.</p>
 
@@ -155,7 +155,7 @@ The flowchart below summarises the recommended mapping procedure for Martini 3 m
 
 Martini 3 bead type assignments for the 20 standard amino acid sidechains.
 
-![Martini 3 protein sidechain bead types](docs/img/protein_sidechains.png)
+![Martini 3 protein sidechain bead types](content/img/protein_sidechains.png)
 
 <p class="info-footnote">Reprinted from Souza, P.C.T., Borges-Araújo, L., Brasnett, C. et al. GōMartini 3: From large conformational changes in proteins to environmental bias corrections. <em>Nat Commun</em> 16, 4051 (2025). <a href="https://doi.org/10.1038/s41467-025-58719-0" target="_blank">doi:10.1038/s41467-025-58719-0</a>. Licensed under <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/" target="_blank">CC BY-NC-ND 4.0</a>.</p>
 
@@ -166,7 +166,7 @@ Martini 3 bead type assignments for the 20 standard amino acid sidechains.
 
 Bead type assignments for a wide range of small molecule fragments ([Alessandri et al., 2022](https://advanced.onlinelibrary.wiley.com/doi/full/10.1002/adts.202100391), Apache 2.0). Source: [M3-Bible on GitHub](https://github.com/Martini-Force-Field-Initiative/M3-Bible).
 
-<iframe src="docs/assets/building_block_table.pdf" width="100%" height="700" style="border:1px solid var(--border-input);border-radius:6px;display:block;"></iframe>
+<iframe src="content/assets/building_block_table.pdf" width="100%" height="700" style="border:1px solid var(--border-input);border-radius:6px;display:block;"></iframe>
 
 </details>
 
@@ -175,7 +175,7 @@ Bead type assignments for a wide range of small molecule fragments ([Alessandri 
 
 A comprehensive community-maintained reference for Martini 3 bead type assignments and parameterisation guidelines, covering a wide range of chemical building blocks. Source: [M3-Bible on GitHub](https://github.com/Martini-Force-Field-Initiative/M3-Bible).
 
-<iframe src="docs/assets/MartiniBible.pdf" width="100%" height="700" style="border:1px solid var(--border-input);border-radius:6px;display:block;"></iframe>
+<iframe src="content/assets/MartiniBible.pdf" width="100%" height="700" style="border:1px solid var(--border-input);border-radius:6px;display:block;"></iframe>
 
 <p class="info-footnote">Maintained by Riccardo Alessandri and Fabian Grünewald. Last accessed: 18 June 2026.</p>
 

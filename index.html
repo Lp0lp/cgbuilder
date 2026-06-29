@@ -120,7 +120,7 @@
         <div id="mapping-panel">
             <div class="panel-title">Mapping</div>
             <div class="sasa-row">
-                <span class="sasa-label">Heavy atoms</span>
+                <span class="sasa-label" title="Period-4+ atoms (Br, Se, I, ...) count as 2, per the Martini 3 default bead-size convention.">Heavy atoms</span>
                 <span id="map-heavy">—</span>
             </div>
             <div class="sasa-row">
@@ -144,6 +144,14 @@
             <button id="clear-beads-btn" class="btn-danger" disabled>Clear beads</button>
             <button id="predict-types" disabled>Predict bead types</button>
         </div>
+        <div class="hint-text">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/><path d="M13 13l6 6"/></svg>
+            Click an atom to add it to the selected bead &nbsp;·&nbsp; ⇧+Click to remove it
+        </div>
+        <div id="multi-residue-warning" class="output-warning" hidden>
+            ⚠ Loaded structure has more than one residue — check this is the molecule you intend to map.
+        </div>
+        <div id="capped-heteroatom-warning" class="output-warning" hidden></div>
         <ul id="bead-list"></ul>
     </div>
 
@@ -153,16 +161,17 @@
             <button class="tab-btn" data-tab="gro">.gro</button>
             <button class="tab-btn" data-tab="ndx">.ndx</button>
             <button class="tab-btn" data-tab="map">.map</button>
+            <button class="tab-btn" data-tab="smiles">AA SMILES</button>
         </div>
         <div class="tab-panel active" id="tab-py">
             <div class="output-header">
                 <button id="dl-py">Download</button>
                 <button id="copy-py">Copy</button>
             </div>
-            <div id="atom-name-warning" class="output-warning" hidden>
+            <div id="atom-name-warning" class="output-warning output-error" hidden>
                 ⚠ Duplicate atom names in loaded structure — Shaker mapping may assign atoms incorrectly.
             </div>
-            <div id="py-warning" class="output-warning" hidden>
+            <div id="py-warning" class="output-warning output-error" hidden>
                 ⚠ Duplicate bead names detected — Shaker output will be faulty. Fix names in the bead list.
             </div>
             <pre id="py-output">PY output</pre>
@@ -170,32 +179,42 @@
         <div class="tab-panel" id="tab-gro">
             <div class="output-header">
                 <button id="dl-gro">Download</button>
+                <button id="copy-gro">Copy</button>
             </div>
             <pre id="gro-output">GRO output</pre>
         </div>
         <div class="tab-panel" id="tab-ndx">
             <div class="output-header">
                 <button id="dl-ndx">Download</button>
+                <button id="copy-ndx">Copy</button>
             </div>
             <pre id="ndx-output">NDX output</pre>
         </div>
         <div class="tab-panel" id="tab-map">
             <div class="output-header">
                 <button id="dl-map">Download</button>
+                <button id="copy-map">Copy</button>
             </div>
             <pre id="map-output">MAP output</pre>
+        </div>
+        <div class="tab-panel" id="tab-smiles">
+            <div class="output-header">
+                <button id="dl-smiles">Download</button>
+                <button id="copy-smiles">Copy</button>
+            </div>
+            <pre id="smiles-output">AA SMILES output</pre>
         </div>
     </div>
 </div>
 
 <!-- ===== HOW TO USE PAGE ===== -->
 <div id="page-howto" class="page doc-page">
-    <div class="doc-content" data-md="docs/howto.md"></div>
+    <div class="doc-content" data-md="content/howto.md"></div>
 </div>
 
 <!-- ===== GUIDELINES PAGE ===== -->
 <div id="page-guidelines" class="page doc-page">
-    <div class="doc-content" data-md="docs/guidelines.md"></div>
+    <div class="doc-content" data-md="content/guidelines.md"></div>
 </div>
 
 
