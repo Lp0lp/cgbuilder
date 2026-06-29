@@ -125,13 +125,17 @@ export function shrakeRupley(particles, probeRadius, nPoints = 4800) {
         const [xi, yi, zi, ri] = particles[i];
         const shellR = ri + probeRadius;
 
+        // Each neighbour's coordinates/cutoff are fixed regardless of which
+        // sample point is being tested, so they're resolved once here rather
+        // than re-derived from `particles[j]` on every one of the nPoints
+        // iterations below.
         const neighbors = [];
         for (let j = 0; j < n; j++) {
             if (j === i) continue;
             const [xj, yj, zj, rj] = particles[j];
             const cutoff = shellR + rj + probeRadius;
             const dx = xi - xj, dy = yi - yj, dz = zi - zj;
-            if (dx*dx + dy*dy + dz*dz < cutoff*cutoff) neighbors.push(j);
+            if (dx*dx + dy*dy + dz*dz < cutoff*cutoff) neighbors.push([xj, yj, zj, rj + probeRadius]);
         }
 
         let exposed = 0;
@@ -140,9 +144,7 @@ export function shrakeRupley(particles, probeRadius, nPoints = 4800) {
             const py = yi + shellR * uy;
             const pz = zi + shellR * uz;
             let buried = false;
-            for (const j of neighbors) {
-                const [xj, yj, zj, rj] = particles[j];
-                const cutoff = rj + probeRadius;
+            for (const [xj, yj, zj, cutoff] of neighbors) {
                 const dx = px - xj, dy = py - yj, dz = pz - zj;
                 if (dx*dx + dy*dy + dz*dz < cutoff*cutoff) { buried = true; break; }
             }
