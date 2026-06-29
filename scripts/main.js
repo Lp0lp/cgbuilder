@@ -10,7 +10,7 @@ import { EXAMPLE_PDB, EXAMPLE_MAPPING } from './example.js';
    per loaded molecule, and wires up everything that isn't specific to one
    molecule (theme, the output-tab bar, the top-level navbar/doc pages, the
    clear-beads and paste-mapping dialogs). Pure UI wiring — no algorithm
-   lives in this file. */
+   lives here... */
 
 // The active Visualization instance, since the app only ever has one
 // molecule loaded at a time. Module-level rather than passed around, so
@@ -205,6 +205,10 @@ function main() {
 
     // Remove preset left-click centering behaviour (added in NGL v2.0.0-dev.11).
     stage.mouseControls.remove("clickPick-left");
+    // Remove NGL's built-in ctrl-click distance/angle/dihedral measurement
+    // tool — it fires alongside our own atom-click-to-bead handling and
+    // looks like unrelated, confusing behaviour in this app.
+    stage.mouseControls.remove("clickPick-ctrl-left");
 
     let buttons = document.getElementsByClassName("new-bead");
     for (const button of buttons) button.disabled = true;

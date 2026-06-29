@@ -67,7 +67,7 @@ export function beadRadius(bead) {
     return BEAD_RADII[beadSizeClass(bead.type)];
 }
 
-// Standard Bondi vdW radii (Angstrom) for elements found in organic molecules.
+// Standard vdW radii (Angstrom) for elements found in organic molecules.
 const VDW_RADII = {
     H: 1.09, C: 1.75, N: 1.61, O: 1.56, F: 1.44,
     P: 1.80, S: 1.79, CL: 1.74, BR: 1.85, I: 2.00,
@@ -154,7 +154,7 @@ export function shrakeRupley(particles, probeRadius, nPoints = 4800) {
 }
 
 /**
- * Whole-structure SASA (Å²) for the all-atom representation, using Bondi
+ * Whole-structure SASA (Å²) for the all-atom representation, using
  * vdW radii per element.
  * @param {object} structure - NGL-style structure (eachAtom)
  * @param {number} probeRadius - solvent probe radius in Angstrom
