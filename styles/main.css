@@ -305,6 +305,9 @@ body {
 }
 
 .doc-content h2 {
+    display: flex;
+    align-items: center;
+    gap: 9px;
     font-size: 16px;
     font-weight: 600;
     margin: 32px 0 10px;
@@ -312,6 +315,104 @@ body {
     padding-bottom: 6px;
     border-bottom: 1px solid var(--border);
 }
+
+.doc-content h2 svg {
+    flex-shrink: 0;
+    color: var(--color-primary);
+}
+
+.doc-content .toc {
+    margin: 0 0 28px;
+    padding: 14px 18px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-surface);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.doc-content .toc-title {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+}
+
+.doc-content .toc ol {
+    margin: 0;
+    padding-left: 18px;
+    columns: 2;
+}
+
+/* ================================
+   CALLOUT BOXES (DOC PAGES)
+================================ */
+
+.callout {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 12px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    margin: 14px 0;
+    font-size: 0.95em;
+    line-height: 1.55;
+}
+
+.callout svg {
+    flex-shrink: 0;
+    margin-top: 3px;
+}
+
+.callout p {
+    margin: 0;
+}
+
+.callout-warning {
+    background: color-mix(in srgb, var(--sasa-warn) 8%, var(--bg-surface));
+    border-color: var(--sasa-warn);
+}
+
+.callout-warning svg {
+    color: var(--sasa-warn);
+}
+
+.callout-note {
+    background: var(--chip-bg);
+    border-color: var(--chip-border);
+}
+
+.callout-note svg {
+    color: var(--chip-text);
+}
+
+/* ================================
+   BEAD TYPE COLOR SWATCHES (DOC PAGES)
+================================ */
+
+.color-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 5px;
+    vertical-align: middle;
+}
+
+/* Matches typeColor() in visualization.js exactly. */
+.color-dot-c { background: #8c8c8c; } /* apolar */
+.color-dot-n { background: #4a8fd9; } /* intermediate */
+.color-dot-p { background: #e84d3d; } /* polar */
+.color-dot-q { background: #f29c12; } /* charged */
+.color-dot-x { background: #2ecc70; } /* halogen */
+
+/* Matches the Mapping panel's Mismatch indicator (sasa-diff-good/-warn/-bad). */
+.color-dot-good { background: var(--sasa-good); }
+.color-dot-warn { background: var(--sasa-warn); }
+.color-dot-bad  { background: var(--sasa-bad); }
 
 .doc-content ol,
 .doc-content ul:not(.ref-list) {
