@@ -273,20 +273,27 @@ body {
 }
 
 .doc-content details.nested {
-    border: 1px solid var(--border-input);
-    border-radius: 4px;
-    margin: 8px 0 4px;
+    border: none;
+    border-left: 3px solid var(--border-input);
+    border-radius: 0;
+    margin: 0;
+    padding-left: 14px;
+}
+
+.doc-content details.nested + details.nested {
+    border-top: 1px solid var(--border-light);
+    padding-top: 2px;
 }
 
 .doc-content details.nested > summary {
-    font-size: 13px;
-    font-weight: 500;
-    padding: 8px 12px;
+    font-size: 15px;
+    font-weight: 600;
+    padding: 10px 0;
     background: none;
 }
 
 .doc-content details.nested > *:not(summary) {
-    padding: 10px 12px;
+    padding: 0 0 14px;
 }
 
 .doc-content h1 {
