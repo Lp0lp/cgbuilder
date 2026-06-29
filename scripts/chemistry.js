@@ -55,9 +55,13 @@ const _VALENCE_ELECTRONS = {
     H: 1, B: 3, C: 4, N: 5, O: 6, F: 7, SI: 4, P: 5, S: 6, CL: 7, BR: 7, I: 7, SE: 6,
 };
 
-// Candidate target valences per element, most-common first. An atom's actual
-// target is the smallest option that is still >= its raw bond count, so a
-// phosphate P (4-5 bonds) picks 5 instead of the default 3, etc.
+// Candidate target valences per element. An atom's actual target is the
+// FIRST option here that is >= its raw bond count (see targetValence's
+// `.find()`) -- NOT necessarily the smallest one, so order matters and is
+// not purely cosmetic. E.g. a phosphate P (4-5 bonds) picks 5 over the
+// default 3; O's [2, 1, 3] is deliberately not ascending, so a degree-1
+// oxygen (e.g. a hydroxyl/ether) defaults to valence 2 rather than 1 --
+// "tidying" this array into ascending order would silently change that.
 const _VALENCE_OPTIONS = {
     H: [1], B: [3, 4], C: [4], N: [3, 4], O: [2, 1, 3],
     F: [1], SI: [4], P: [3, 5], S: [2, 4, 6], CL: [1], BR: [1], I: [1], SE: [2, 4, 6],
