@@ -259,6 +259,24 @@ function _closestType(deltaF, candidates) {
 }
 
 /**
+ * Apply a Martini size prefix (T/S/'') and H-bond suffix (a/d/'') to every
+ * bare code in `codes`, e.g. _series('S', ['N1','N2'], 'a') -> ['SN1a','SN2a'].
+ * Lets determineBeadType's per-size-class candidate lists be written once
+ * instead of by hand for every T/S/plain combination.
+ * @param {string} prefix - size class, 'T'/'S'/''
+ * @param {Array<string>} codes - bare bead-type codes, e.g. 'N1'
+ * @param {string} [suffix] - H-bond label, 'a'/'d'/''
+ * @returns {Array<string>}
+ */
+function _series(prefix, codes, suffix = '') {
+    return codes.map((c) => `${prefix}${c}${suffix}`);
+}
+
+const _NP_CODES = ['N1','N2','N3','N4','N5','N6','P1','P2','P3','P4','P5','P6'];
+const _PCN_CODES = ['P6','P5','P4','P3','P2','P1','C6','C5','C4','C3','C2','C1','N6','N5','N4','N3','N2','N1'];
+const _X_CODES = ['X4','X3','X2','X1'];
+
+/**
  * Port of AutoMartini M3's determine_bead_type(): map one fragment's
  * physicochemical properties to a specific Martini 3 bead type code. Picks
  * a size prefix from weightedHeavyCount/ringOrBranched, then a candidate
@@ -307,43 +325,25 @@ export function determineBeadType({
         // DELTA_F (both -18.2). _closestType keeps whichever candidate it
         // sees first on a tie, so this ordering picks Q5 there instead of
         // Q4 -- harmless everywhere else, since no other deltaF value ties.
-        result = _closestType(deltaF,
-            [`${p}Q1`,`${p}Q2`,`${p}Q3`,`${p}Q5`,`${p}Q4`,`${p}D`]);
+        result = _closestType(deltaF, _series(p, ['Q1', 'Q2', 'Q3', 'Q5', 'Q4', 'D']));
     } else if (hAcceptors > 0 && hDonors === 0) {
         // Pure acceptor → 'a' label.
-        result = _closestType(deltaF, p === 'T'
-            ? ['TN1a','TN2a','TN3a','TN4a','TN5a','TN6a','TP1a','TP2a','TP3a','TP4a','TP5a','TP6a']
-            : p === 'S'
-            ? ['SN1a','SN2a','SN3a','SN4a','SN5a','SN6a','SP1a','SP2a','SP3a','SP4a','SP5a','SP6a']
-            : ['N1a','N2a','N3a','N4a','N5a','N6a','P1a','P2a','P3a','P4a','P5a','P6a']);
+        result = _closestType(deltaF, _series(p, _NP_CODES, 'a'));
     } else if (hDonors > 0 && hAcceptors === 0) {
         // Pure donor → 'd' label.
-        result = _closestType(deltaF, p === 'T'
-            ? ['TN1d','TN2d','TN3d','TN4d','TN5d','TN6d','TP1d','TP2d','TP3d','TP4d','TP5d','TP6d']
-            : p === 'S'
-            ? ['SN1d','SN2d','SN3d','SN4d','SN5d','SN6d','SP1d','SP2d','SP3d','SP4d','SP5d','SP6d']
-            : ['N1d','N2d','N3d','N4d','N5d','N6d','P1d','P2d','P3d','P4d','P5d','P6d']);
+        result = _closestType(deltaF, _series(p, _NP_CODES, 'd'));
     } else {
         // Either no H-bonding, OR both donor AND acceptor (a balanced group such
         // as an amide) → plain N/P/C series with no a/d label, matching Martini 3
         // where the a/d suffixes denote one-sided H-bonders only.
-        let cands;
-        if (p === 'T') {
-            cands = ['TP6','TP5','TP4','TP3','TP2','TP1','TC6','TC5','TC4','TC3','TC2','TC1','TN6','TN5','TN4','TN3','TN2','TN1'];
-            if (!inRing) cands = cands.filter(t => t !== 'TC5');
-        } else if (p === 'S') {
-            cands = ['SP6','SP5','SP4','SP3','SP2','SP1','SC6','SC5','SC4','SC3','SC2','SC1','SN6','SN5','SN4','SN3','SN2','SN1'];
-        } else {
-            cands = ['P6','P5','P4','P3','P2','P1','C6','C5','C4','C3','C2','C1','N6','N5','N4','N3','N2','N1'];
-        }
+        let cands = _series(p, _PCN_CODES);
+        if (p === 'T' && !inRing) cands = cands.filter((t) => t !== 'TC5');
         result = _closestType(deltaF, cands);
     }
 
     // Halogen overrides everything (same as AutoMartini)
     if (hasHalogen) {
-        result = _closestType(deltaF, p === 'T' ? ['TX4','TX3','TX2','TX1']
-                                    : p === 'S' ? ['SX4','SX3','SX2','SX1']
-                                    :              ['X4','X3','X2','X1']);
+        result = _closestType(deltaF, _series(p, _X_CODES));
     }
 
     return result;
