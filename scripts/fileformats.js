@@ -138,23 +138,18 @@ export function generatePythonAssignments(collection) {
  * @returns {string}
  */
 export function generateGRO(collection) {
-    let resid = "    0";
-    let resname = "";
-    let atomname = "    0";
-    let atomid = 0;
-    let x, y, z, center;
     let output = "Generated with cgbuilder\n" + collection.beads.length + "\n";
     let counter = 0;
     for (const bead of collection.beads) {
         counter += 1;
-        resid    = String(bead.resid).padStart(5);
-        atomid   = String(counter).padStart(5);
-        resname  = bead.resname.padEnd(5).substring(0, 5);
-        atomname = bead.name.padStart(5).substring(0, 5);
-        center   = bead.center;
-        x = (center.x / 10).toFixed(3).padStart(8);
-        y = (center.y / 10).toFixed(3).padStart(8);
-        z = (center.z / 10).toFixed(3).padStart(8);
+        const resid    = String(bead.resid).padStart(5);
+        const atomid   = String(counter).padStart(5);
+        const resname  = bead.resname.padEnd(5).substring(0, 5);
+        const atomname = bead.name.padStart(5).substring(0, 5);
+        const center   = bead.center;
+        const x = (center.x / 10).toFixed(3).padStart(8);
+        const y = (center.y / 10).toFixed(3).padStart(8);
+        const z = (center.z / 10).toFixed(3).padStart(8);
         output += resid + resname + atomname + atomid + x + y + z + '\n';
     }
     output += "10 10 10\n";
