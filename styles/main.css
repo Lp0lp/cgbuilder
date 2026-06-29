@@ -282,7 +282,7 @@ body {
     font-size: 13px;
     font-weight: 500;
     padding: 8px 12px;
-    background: var(--bg-page);
+    background: none;
 }
 
 .doc-content details.nested > *:not(summary) {
