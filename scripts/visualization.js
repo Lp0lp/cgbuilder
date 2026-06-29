@@ -596,6 +596,23 @@ export class Visualization {
 	}
 
     /**
+     * Index of `node` within #bead-list's children — matches its position
+     * in this.collection.beads, since createBeadList always rebuilds the
+     * two in lockstep.
+     * @param {Node} node
+     * @returns {number} -1 if not found
+     */
+    _beadIndexForNode(node) {
+        const nodes = document.getElementById("bead-list").childNodes;
+        let index = 0;
+        for (const child of nodes) {
+            if (child === node) return index;
+            index += 1;
+        }
+        return -1;
+    }
+
+    /**
      * Bead-card click handler: selects that bead, or deselects it if it was
      * already the current one (a toggle). Ignores clicks that land on an
      * actual form control (input/button/etc.) within the card, so editing
@@ -606,19 +623,14 @@ export class Visualization {
         const tag = event.target.tagName;
         if (tag === "INPUT" || tag === "BUTTON" || tag === "FORM" || tag === "LABEL") return;
 
-        let realTarget = findParentWithClass(event.target, "bead-view");
-        let nodes = document.getElementById("bead-list").childNodes;
-        let index = 0;
-        for (const child of nodes) {
-            if (child === realTarget) {
-                if (this.collection.beads[index] === this.currentBead) {
-                    this.collection.deselectBead();
-                } else {
-                    this.collection.selectBead(index);
-                }
-                break;
+        const realTarget = findParentWithClass(event.target, "bead-view");
+        const index = this._beadIndexForNode(realTarget);
+        if (index >= 0) {
+            if (this.collection.beads[index] === this.currentBead) {
+                this.collection.deselectBead();
+            } else {
+                this.collection.selectBead(index);
             }
-            index += 1;
         }
         this.updateSelection();
     }
@@ -631,14 +643,8 @@ export class Visualization {
      * @param {Event} event
      */
 	onBeadRemove(event) {
-        let realTarget = findParentWithClass(event.target, "bead-view");
-        let nodes = document.getElementById("bead-list").childNodes;
-        let index = 0;
-        let selected = -1;
-        for (const child of nodes) {
-            if (child === realTarget) { selected = index; break; }
-            index += 1;
-        }
+        const realTarget = findParentWithClass(event.target, "bead-view");
+        const selected = this._beadIndexForNode(realTarget);
         if (selected >= 0) {
             this.collection.removeBead(selected);
             if (this.collection.beads.length === 0) this.collection.newBead();
@@ -654,13 +660,9 @@ export class Visualization {
      * @param {Event} event
      */
     onNameChange(event) {
-        let realTarget = findParentWithClass(event.target, "bead-view");
-        let nodes = document.getElementById("bead-list").childNodes;
-        let index = 0;
-        for (const child of nodes) {
-            if (child === realTarget) this.collection.beads[index].name = event.target.value;
-            index += 1;
-        }
+        const realTarget = findParentWithClass(event.target, "bead-view");
+        const index = this._beadIndexForNode(realTarget);
+        if (index >= 0) this.collection.beads[index].name = event.target.value;
         this.updateName();
         this.checkDuplicateNames();
     }
