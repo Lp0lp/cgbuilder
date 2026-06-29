@@ -283,17 +283,30 @@ export function readOriginalAtomNames(file) {
  * syntax Shaker uses (single-quoted atom names, a bare resname wrapper)
  * rather than requiring strict JSON. Bead order in the result follows
  * occurrence order in the text, not any field in the dict itself.
+ *
+ * A bead's own `{...}` body is matched first (deliberately excluding `{`/`}`
+ * from its contents — the thing that distinguishes ONE bead's flat
+ * type/charge/atoms object from the surrounding resname wrapper, which
+ * nests bead entries inside ITS OWN braces and so can never match this
+ * pattern itself), then type/charge/atoms are each pulled out of that body
+ * independently. A Python dict literal's key order has no meaning to
+ * Shaker, so this doesn't assume "type" precedes "charge" precedes "atoms"
+ * the way a single combined pattern would.
  * @param {string} text - pasted Shaker `mapping = {...}` text
  * @returns {Array<{name: string, type: string, charge: number, atoms: Array<string>}>}
  */
 export function parseShakerMapping(text) {
     const beads = [];
-    // Matches each bead line: "NAME": {"type": "T", "charge": 0, "atoms": ['A1', 'A2']}
-    const re = /"([^"]+)":\s*\{\s*"type":\s*"([^"]*)",\s*"charge":\s*([^,\s\n]+),\s*"atoms":\s*\[([^\]]*)\]/g;
+    const beadRe = /"([^"]+)":\s*\{([^{}]*)\}/g;
     let m;
-    while ((m = re.exec(text)) !== null) {
-        const atoms = [...m[4].matchAll(/['"]([^'"]+)['"]/g)].map(x => x[1]);
-        beads.push({ name: m[1], type: m[2], charge: parseFloat(m[3]) || 0, atoms });
+    while ((m = beadRe.exec(text)) !== null) {
+        const body = m[2];
+        const typeMatch = body.match(/"type":\s*"([^"]*)"/);
+        const chargeMatch = body.match(/"charge":\s*([^,\s}]+)/);
+        const atomsMatch = body.match(/"atoms":\s*\[([^\]]*)\]/);
+        if (!typeMatch || !chargeMatch || !atomsMatch) continue;
+        const atoms = [...atomsMatch[1].matchAll(/['"]([^'"]+)['"]/g)].map(x => x[1]);
+        beads.push({ name: m[1], type: typeMatch[1], charge: parseFloat(chargeMatch[1]) || 0, atoms });
     }
     return beads;
 }
