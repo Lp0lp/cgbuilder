@@ -215,6 +215,24 @@ function _connectedComponents(nodes, adj) {
 }
 
 /**
+ * Whether a structure contains at least one explicit hydrogen atom — the
+ * gate perceiveChemistry uses to decide whether valence-budget bond-order
+ * resolution is even possible (see the module-level "why explicit hydrogens
+ * are required" comment).
+ * @param {object} structure - NGL-style structure (eachAtom)
+ * @returns {boolean}
+ */
+function _structureHasHydrogens(structure) {
+    let found = false;
+    if (structure && typeof structure.eachAtom === 'function') {
+        structure.eachAtom((atom) => {
+            if ((atom.element || '').toUpperCase() === 'H') found = true;
+        });
+    }
+    return found;
+}
+
+/**
  * Perceive whole-molecule chemistry: bond orders, ring/aromaticity, and
  * formal charge, from connectivity + explicit hydrogens alone (see the
  * module-level comment for the algorithm and why explicit H is required).
@@ -242,7 +260,7 @@ export function perceiveChemistry(structure) {
         bondOrders: new Map(), charges: new Map(), hNeighbors: new Map(),
     };
     if (!structure || typeof structure.eachAtom !== 'function') return empty;
-    if (!structureHasHydrogens(structure)) return empty;
+    if (!_structureHasHydrogens(structure)) return empty;
 
     const element = new Map();
     structure.eachAtom((a) => element.set(a.index, (a.element || 'C').toUpperCase()));
@@ -721,22 +739,4 @@ export function weightedHeavyAtomCount(structure) {
         });
     }
     return total;
-}
-
-/**
- * Whether a structure contains at least one explicit hydrogen atom — the
- * gate perceiveChemistry uses to decide whether valence-budget bond-order
- * resolution is even possible (see the module-level "why explicit hydrogens
- * are required" comment).
- * @param {object} structure - NGL-style structure (eachAtom)
- * @returns {boolean}
- */
-export function structureHasHydrogens(structure) {
-    let found = false;
-    if (structure && typeof structure.eachAtom === 'function') {
-        structure.eachAtom((atom) => {
-            if ((atom.element || '').toUpperCase() === 'H') found = true;
-        });
-    }
-    return found;
 }
