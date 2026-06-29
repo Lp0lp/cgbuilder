@@ -447,12 +447,9 @@ export function fragmentToSmiles(beadAtoms, chemistry, { aromaticNotation = fals
             internalBonds: [],
         });
     }
-    const intSum = new Map();
     for (const edge of edges.values()) {
         data.get(edge.a).internalBonds.push({ toIdx: edge.b, order: edge.order });
         data.get(edge.b).internalBonds.push({ toIdx: edge.a, order: edge.order });
-        intSum.set(edge.a, (intSum.get(edge.a) || 0) + edge.order);
-        intSum.set(edge.b, (intSum.get(edge.b) || 0) + edge.order);
     }
     // hCount = real explicit H neighbours, plus one per bond leaving the
     // fragment to ANOTHER HEAVY atom (capped as hydrogen, same

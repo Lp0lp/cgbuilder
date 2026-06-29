@@ -280,12 +280,7 @@ export class BeadCollection {
      * @returns {Array<string>}
      */
     expandedAtomNames(bead) {
-        const names = [];
-        for (const atom of bead.atoms) {
-            const weight = bead.atomWeights[atom.index] || 1;
-            for (let i = 0; i < weight; i++) names.push(this.atomName(atom));
-        }
-        return names;
+        return bead.expandedAtoms().map((atom) => this.atomName(atom));
     }
 
     /**
