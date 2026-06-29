@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { Bead, BeadCollection } from '../scripts/bead.js';
+import { buildStructure } from './helpers/mockStructure.js';
 
 // Bead.center calls `new NGL.Vector3(...)`, referencing NGL as a browser
 // global (loaded via <script> tag in index.html, not an ES import). Stand in
@@ -14,8 +15,8 @@ beforeAll(() => {
     };
 });
 
-function atom(index, x, y, z) {
-    return { index, positionToVector3: () => ({ x, y, z }) };
+function atom(index, x, y, z, atomname = `A${index}`) {
+    return { index, positionToVector3: () => ({ x, y, z }), atomname };
 }
 
 describe('Bead', () => {
@@ -69,6 +70,42 @@ describe('Bead', () => {
         bead.charge = '-1.5';
         expect(bead.charge).toBe(-1.5);
     });
+
+    it('indexOf finds an atom by index, -1 if absent', () => {
+        const bead = new Bead();
+        const a = atom(3, 0, 0, 0);
+        bead.addAtom(a);
+        expect(bead.indexOf(a)).toBe(0);
+        expect(bead.indexOf(atom(99, 0, 0, 0))).toBe(-1);
+    });
+
+    it('isAtomIn reflects membership', () => {
+        const bead = new Bead();
+        const a = atom(0, 0, 0, 0);
+        const b = atom(1, 0, 0, 0);
+        bead.addAtom(a);
+        expect(bead.isAtomIn(a)).toBe(true);
+        expect(bead.isAtomIn(b)).toBe(false);
+    });
+
+    it('toggleAtom always adds/increments, never removes (see its own comment)', () => {
+        const bead = new Bead();
+        const a = atom(0, 0, 0, 0);
+        bead.toggleAtom(a);
+        bead.toggleAtom(a);
+        expect(bead.atoms).toHaveLength(1);
+        expect(bead.atomWeights[0]).toBe(2);
+    });
+
+    it('expandedAtoms repeats each atom by its weight, default 1', () => {
+        const bead = new Bead();
+        const a = atom(0, 0, 0, 0);
+        const b = atom(1, 0, 0, 0);
+        bead.addAtom(a);
+        bead.addAtom(b);
+        bead.addAtom(b); // weight 2
+        expect(bead.expandedAtoms()).toEqual([a, b, b]);
+    });
 });
 
 describe('BeadCollection', () => {
@@ -102,5 +139,79 @@ describe('BeadCollection', () => {
         const second = col.newBead();
         second.addAtom(a);
         expect(col.countBeadsForAtom(a)).toBe(2);
+    });
+
+    describe('atom naming', () => {
+        it('atomName falls back to atom.atomname when no original names were set', () => {
+            const col = new BeadCollection();
+            expect(col.atomName(atom(0, 0, 0, 0, 'CA'))).toBe('CA');
+        });
+
+        it('atomName prefers the recorded original name, by index, once set', () => {
+            const col = new BeadCollection();
+            col.setOriginalAtomNames(['N1', 'C2', 'C3']);
+            expect(col.atomName(atom(1, 0, 0, 0, 'fallback'))).toBe('C2');
+            // Index 5 was never recorded -- falls back to atom.atomname.
+            expect(col.atomName(atom(5, 0, 0, 0, 'C99'))).toBe('C99');
+        });
+
+        it('regression: recovers a PDB/GRO atom name NGL re-cased (e.g. "CL9" -> "Cl9")', () => {
+            // setOriginalAtomNames/atomName exist specifically because NGL's
+            // own parsed atom.atomname isn't guaranteed to match the source
+            // file byte-for-byte -- it was re-casing a chlorine atom named
+            // "CL9" in the source PDB to "Cl9", which broke anything that
+            // needed the exact original name (e.g. round-tripping a Shaker
+            // mapping, where the exported name must match what re-importing
+            // expects). The fix reads names straight from the file's raw
+            // text (see parsePDBAtomNames/parseGROAtomNames in
+            // fileformats.js) and looks them up by index here instead of
+            // trusting NGL's own casing.
+            const col = new BeadCollection();
+            col.setOriginalAtomNames(['C1', 'CL9']); // as read verbatim from the PDB
+            const nglMisCasedAtom = atom(1, 0, 0, 0, 'Cl9'); // NGL's own (wrong) parse
+            expect(col.atomName(nglMisCasedAtom)).toBe('CL9');
+        });
+
+        it('setOriginalAtomNames with a non-array input clears rather than throwing', () => {
+            const col = new BeadCollection();
+            col.setOriginalAtomNames(['N1']);
+            col.setOriginalAtomNames(null);
+            expect(col.atomName(atom(0, 0, 0, 0, 'fallback'))).toBe('fallback');
+        });
+
+        it('atomNames maps atomName over a list of atoms', () => {
+            const col = new BeadCollection();
+            col.setOriginalAtomNames(['N1', 'C2']);
+            const names = col.atomNames([atom(0, 0, 0, 0), atom(1, 0, 0, 0)]);
+            expect(names).toEqual(['N1', 'C2']);
+        });
+
+        it('expandedAtomNames repeats a weighted atom\'s name, using recorded original names', () => {
+            const col = new BeadCollection();
+            col.setOriginalAtomNames(['N1', 'C2']);
+            const bead = col.beads[0];
+            const a = atom(0, 0, 0, 0);
+            const b = atom(1, 0, 0, 0);
+            bead.addAtom(a);
+            bead.addAtom(b);
+            bead.addAtom(b); // weight 2
+            expect(col.expandedAtomNames(bead)).toEqual(['N1', 'C2', 'C2']);
+        });
+
+        it('structureAtomNames returns atomName for every atom in structure order', () => {
+            const col = new BeadCollection();
+            col.setOriginalAtomNames(['N1', 'C2']);
+            const structure = buildStructure([
+                { element: 'N', atomname: 'fallback0' },
+                { element: 'C', atomname: 'fallback1' },
+            ]);
+            expect(col.structureAtomNames(structure)).toEqual(['N1', 'C2']);
+        });
+
+        it('structureAtomNames returns an empty array for a structure with no eachAtom', () => {
+            const col = new BeadCollection();
+            expect(col.structureAtomNames(null)).toEqual([]);
+            expect(col.structureAtomNames({})).toEqual([]);
+        });
     });
 });

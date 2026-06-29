@@ -30,7 +30,7 @@ import { loadRDKit } from './rdkit.js';
  * @param {string} beadType - Martini type code, e.g. "SP2a"
  * @returns {[number,number,number]}
  */
-function typeColor(beadType) {
+export function typeColor(beadType) {
     const t = (beadType || '').toUpperCase();
     const cls = (t[0] === 'S' || t[0] === 'T') ? t[1] : t[0];
     switch (cls) {
@@ -53,7 +53,7 @@ function typeColor(beadType) {
  * @param {string} className
  * @returns {Element|null}
  */
-function findParentWithClass(element, className) {
+export function findParentWithClass(element, className) {
     let node = element;
     while (node) {
         if (node.classList.contains(className)) return node;
