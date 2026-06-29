@@ -25,6 +25,12 @@ let currentVizu = null;
  * and loads both the structure (via NGL) and its original atom names (see
  * fileformats.js's readOriginalAtomNames) in parallel before wiring up the
  * rest of the per-molecule UI (new-bead buttons, the 3D click handler).
+ * Every one of those controls stays disabled/unregistered until the load
+ * actually finishes — they all end up calling Visualization.updateSelection,
+ * which dereferences `representation`, only set once attachRepresentation
+ * runs below; wiring them any earlier would let a click during the load
+ * (e.g. on an already-disabled-looking button, or on empty viewport space
+ * before the structure has rendered) throw on a null representation.
  * @param {File} file
  * @param {object} stage - NGL Stage
  * @returns {Promise<void>} resolves once the molecule is fully loaded and
@@ -39,6 +45,11 @@ function loadMoleculeFromFile(file, stage) {
     let vizu = new Visualization(collection, stage);
     currentVizu = vizu;
 
+    let newBeadButtons = document.getElementsByClassName("new-bead");
+    for (const button of newBeadButtons) button.disabled = true;
+    document.getElementById('load-mapping-btn').disabled = true;
+    document.getElementById('clear-beads-btn').disabled = true;
+
     const namePromise = readOriginalAtomNames(file);
     const componentPromise = stage.loadFile(file);
 
@@ -52,21 +63,18 @@ function loadMoleculeFromFile(file, stage) {
             vizu.checkAtomNameUniqueness(component.structure);
             vizu.countHeavyAtoms(component.structure);
             vizu.updateSelection();
+
+            for (const button of newBeadButtons) {
+                button.onclick = (event) => vizu.onNewBead(event);
+                button.disabled = false;
+            }
+            document.getElementById('load-mapping-btn').disabled = false;
+            document.getElementById('clear-beads-btn').disabled = false;
+            stage.signals.clicked.add((pickingProxy) => vizu.onClick(pickingProxy));
         })
         .catch((err) => {
             console.error("Error loading molecule or reading original atom names:", err);
         });
-
-    let buttons = document.getElementsByClassName("new-bead");
-    for (const button of buttons) {
-        button.onclick = (event) => vizu.onNewBead(event);
-        button.disabled = false;
-    }
-
-    document.getElementById('load-mapping-btn').disabled = false;
-    document.getElementById('clear-beads-btn').disabled = false;
-
-    stage.signals.clicked.add((pickingProxy) => vizu.onClick(pickingProxy));
 
     return ready;
 }
