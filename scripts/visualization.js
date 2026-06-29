@@ -121,6 +121,7 @@ export class Visualization {
         this._cgSurfaceToken = 0;     // guards against stale async surface loads
         this._aaSASAValue = null;     // cached; recomputed only on molecule load
         this.nHeavyAtoms = 0;
+        this._canonTable = null;      // cached RDKit-canonicalized lookup table, see _loadPredictionDeps
 
         let toggleCGLabels = document.getElementById('toggle-cg-labels');
         toggleCGLabels.onchange = (e) => { this.showCGLabels = e.target.checked; this.drawCG(); };
@@ -338,9 +339,23 @@ export class Visualization {
     }
 
     /**
-     * "Predict bead types" button handler: load RDKit (cached after first
-     * use, see rdkit.js), build the canonicalized lookup table once, then
-     * run _predictOneBead for every bead in the collection.
+     * Load RDKit (cached across the whole page session, see rdkit.js) and
+     * this molecule's RDKit-canonicalized lookup table (cached on `this`,
+     * since buildCanonTable re-canonicalizes ~150 table entries through
+     * RDKit's WASM module every time it's called — too expensive to redo on
+     * every individual bead's "Predict" click).
+     * @returns {Promise<{RDKit: object, canonTable: Object<string,number>}>}
+     */
+    async _loadPredictionDeps() {
+        const RDKit = await loadRDKit();
+        if (!this._canonTable) this._canonTable = buildCanonTable(RDKit);
+        return { RDKit, canonTable: this._canonTable };
+    }
+
+    /**
+     * "Predict bead types" button handler: load RDKit and the canonicalized
+     * lookup table (cached, see _loadPredictionDeps), then run
+     * _predictOneBead for every bead in the collection.
      */
     async onPredictTypes() {
         const btn = document.getElementById('predict-types');
@@ -350,9 +365,7 @@ export class Visualization {
 
         try {
             btn.textContent = 'Loading RDKit…';
-            const RDKit = await loadRDKit();
-
-            const canonTable = buildCanonTable(RDKit);
+            const { RDKit, canonTable } = await this._loadPredictionDeps();
 
             btn.textContent = 'Predicting…';
             for (const bead of this.collection.beads) {
@@ -493,7 +506,8 @@ export class Visualization {
 
     /**
      * Per-bead "Predict" button handler — same RDKit-load-then-predict
-     * flow as onPredictTypes, just for a single bead.
+     * flow as onPredictTypes (see _loadPredictionDeps), just for a single
+     * bead.
      * @param {object} bead
      * @param {Element} btn - the bead's own Predict button (for in-place feedback)
      */
@@ -503,8 +517,7 @@ export class Visualization {
         btn.disabled = true;
         btn.textContent = '…';
         try {
-            const RDKit = await loadRDKit();
-            const canonTable = buildCanonTable(RDKit);
+            const { RDKit, canonTable } = await this._loadPredictionDeps();
             this._predictOneBead(bead, RDKit, canonTable);
             this.updateSelection();
         } catch (err) {
