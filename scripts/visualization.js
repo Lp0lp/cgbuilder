@@ -676,7 +676,7 @@ export class Visualization {
         const realTarget = findParentWithClass(event.target, "bead-view");
         const index = this._beadIndexForNode(realTarget);
         if (index >= 0) this.collection.beads[index].name = event.target.value;
-        this.updateName();
+        this.updateName(false); // a name can't affect bead position or R/S/T size class
         this.checkDuplicateNames();
     }
 
@@ -706,8 +706,13 @@ export class Visualization {
      * Mapping panel stats, the chopped-heteroatom warning, and the CG
      * viewer. Called after essentially any bead edit (name/type/charge
      * change, atom add/remove, bead add/remove/select).
+     * @param {boolean} [rebuildSurface] - forwarded to drawCG; pass false
+     *   for edits (name, charge) that can't affect bead position or R/S/T
+     *   size class, so the CG surface mesh isn't needlessly torn down and
+     *   rebuilt. The export tabs/SASA/mapping stats above are unaffected
+     *   either way, since they're cheap and always reflect the latest values.
      */
-    updateName() {
+    updateName(rebuildSurface = true) {
         this.updateNDX();
         this.updateMap();
         this.updateGRO();
@@ -715,7 +720,7 @@ export class Visualization {
         this.updateSASA();
         this.updateMappingStats();
         this.updateCappedHeteroatomWarning();
-        this.drawCG();
+        this.drawCG(rebuildSurface);
     }
 
     /**
@@ -917,7 +922,7 @@ export class Visualization {
         chargeNode.step = "0.01";
         chargeNode.value = bead.charge;
         chargeNode.classList.add("bead-charge");
-        chargeNode.oninput = (event) => { bead.charge = event.target.value; this.updateName(); };
+        chargeNode.oninput = (event) => { bead.charge = event.target.value; this.updateName(false); };
         chargeNode.addEventListener("mousedown", e => e.stopPropagation());
 
         const chargeWrap = document.createElement("div");
@@ -932,7 +937,7 @@ export class Visualization {
                 e.stopPropagation();
                 bead.charge = bead.suggestedCharge;
                 chargeNode.value = bead.suggestedCharge;
-                this.updateName();
+                this.updateName(false);
             };
             chargeWrap.appendChild(chargeChip);
         }
@@ -1161,10 +1166,14 @@ export class Visualization {
      * than updated in place — simpler than diffing, and cheap enough at
      * the scale of a CG mapping's bead count. The "Solid beads" toggle is
      * just opacity (1 vs 0.4), not a different representation. Also
-     * triggers a CG surface rebuild, since the surface depends on the same
-     * bead positions.
+     * triggers a CG surface rebuild by default, since the surface depends
+     * on the same bead positions.
+     * @param {boolean} [rebuildSurface] - pass false to skip the trailing
+     *   drawCGSurface call, for edits that can't affect bead position or
+     *   R/S/T size class (see updateName) — the surface mesh has no other
+     *   dependency, so rebuilding it would be wasted, async, main-thread work.
      */
-    drawCG() {
+    drawCG(rebuildSurface = true) {
         let selectedColor = [0.25, 0.84, 0.96];
         let opacity = this.showCG ? 1 : 0.4;
 
@@ -1184,6 +1193,6 @@ export class Visualization {
         this.shapeComp = this.stage.addComponentFromObject(shape);
         this.shapeComp.addRepresentation("buffer", {opacity: opacity});
 
-        this.drawCGSurface();
+        if (rebuildSurface) this.drawCGSurface();
     }
 }
