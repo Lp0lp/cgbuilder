@@ -4,9 +4,9 @@
    Three unrelated concerns share this file because each is small enough not
    to need its own module:
      1. Output generators (generateNDX, generateMap, generatePythonAssignments,
-        generateGRO) — serialise the current bead mapping into the formats
-        downstream tools expect (GROMACS .ndx/.gro, a Martini .map, a Shaker
-        Python assignments dict).
+        generateGRO, generateBartender) — serialise the current bead mapping
+        into the formats downstream tools expect (GROMACS .ndx/.gro, a Martini
+        .map, a Shaker Python assignments dict, a Bartender mapping file).
      2. Import parsers (parsePDBAtomNames/parseGROAtomNames/
         parseOriginalAtomNames/readOriginalAtomNames, parseShakerMapping) —
         the reverse direction: recovering the original AA atom names from a
@@ -121,6 +121,22 @@ export function generatePythonAssignments(collection) {
     lines.push("    },");
     lines.push("}");
     return lines.join("\n") + "\n";
+}
+
+/**
+ * Bartender mapping text: one line per bead, `<beadNumber> <idx1>,<idx2>,...`.
+ * Bead numbers are 1-based. Atom indices are 1-based (GROMACS convention).
+ * Atoms weighted ×N appear N times, matching the Shaker convention.
+ * @param {object} collection - BeadCollection
+ * @returns {string}
+ */
+export function generateBartender(collection) {
+    const lines = ['BEADS'];
+    collection.beads.forEach((bead, i) => {
+        const indices = bead.expandedAtoms().map((a) => a.index + 1);
+        lines.push(`${i + 1} ${indices.join(',')}`);
+    });
+    return lines.join('\n') + '\n';
 }
 
 /**

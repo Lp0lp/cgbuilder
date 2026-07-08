@@ -137,7 +137,8 @@ Use the **Viewer** panel toggles to interact with the molecular viewer:
 
 The output tabs at the bottom of the App page update live as you work. Use *Download* or *Copy*.
 
-- **Shaker** — Python dict format used by [Shaker](https://github.com/Lp0lp/shaker). 
+- **Shaker** — Python dict format used by [Shaker](https://github.com/Lp0lp/shaker).
+- **Bartender** — plain-text mapping for [Bartender](https://github.com/Martini-Force-Field-Initiative/Bartender): one line per bead (`BEADS` section header, then `<bead number> <atom indices…>`, 1-based, atoms repeated by weight).
 - **.gro** — GROMACS coordinate file with one entry per bead at its mapped centre.
 - **.ndx** — GROMACS index file grouping atoms by bead.
 - **.map** — Martini .map file.

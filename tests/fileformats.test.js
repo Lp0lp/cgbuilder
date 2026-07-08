@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-    generateNDX, generateMap, generatePythonAssignments, generateGRO, parseShakerMapping,
+    generateNDX, generateMap, generatePythonAssignments, generateGRO,
+    generateBartender, parseShakerMapping,
 } from '../scripts/fileformats.js';
 import { EXAMPLE_MAPPING } from '../scripts/example.js';
 
@@ -71,6 +72,24 @@ describe('generateGRO', () => {
         expect(lines[2]).toContain('2.000');
         expect(lines[2]).toContain('3.000');
         expect(gro).toContain('10 10 10');
+    });
+});
+
+describe('generateBartender', () => {
+    it('writes BEADS header and one line per bead with 1-based atom indices', () => {
+        const collection = makeCollection([
+            { name: 'B0', atoms: [{ index: 0 }, { index: 1 }], expandedAtoms() { return this.atoms; } },
+            { name: 'B1', atoms: [{ index: 2 }],               expandedAtoms() { return this.atoms; } },
+        ]);
+        expect(generateBartender(collection)).toBe('BEADS\n1 1,2\n2 3\n');
+    });
+
+    it('repeats an atom index when it carries weight > 1', () => {
+        const a = { index: 4 };
+        const collection = makeCollection([
+            { name: 'B0', atoms: [a], expandedAtoms() { return [a, a]; } },
+        ]);
+        expect(generateBartender(collection)).toBe('BEADS\n1 5,5\n');
     });
 });
 
