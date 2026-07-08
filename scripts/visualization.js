@@ -5,8 +5,8 @@ import {
 } from './chemistry.js';
 import { PROBE_RADIUS, aaSASA, cgSASA, beadsToPDB } from './sasa.js';
 import { generateNDX, generateMap, generateGRO, generatePythonAssignments,
-         download, copyTextToClipboard, bondAwareRepresentationParams,
-         parseShakerMapping } from './fileformats.js';
+         generateBartender, download, copyTextToClipboard,
+         bondAwareRepresentationParams, parseShakerMapping } from './fileformats.js';
 import { loadRDKit } from './rdkit.js';
 
 /* ===========================================================================
@@ -161,11 +161,14 @@ export class Visualization {
             download('cgbuilder.gro', generateGRO(this.collection));
         document.getElementById('dl-py').onclick = () =>
             download('cgbuilder_assignments.py', generatePythonAssignments(this.collection));
+        document.getElementById('dl-bartender').onclick = () =>
+            download('cgbuilder.bartender', generateBartender(this.collection));
 
         document.getElementById('dl-smiles').onclick = () =>
             download('cgbuilder.smi', document.getElementById('smiles-output').textContent || "");
 
         wireCopyButton('copy-py', 'py-output');
+        wireCopyButton('copy-bartender', 'bartender-output');
         wireCopyButton('copy-gro', 'gro-output');
         wireCopyButton('copy-ndx', 'ndx-output');
         wireCopyButton('copy-map', 'map-output');
@@ -717,6 +720,7 @@ export class Visualization {
         this.updateMap();
         this.updateGRO();
         this.updatePY();
+        this.updateBartender();
         this.updateSASA();
         this.updateMappingStats();
         this.updateCappedHeteroatomWarning();
@@ -1061,6 +1065,8 @@ export class Visualization {
     updateMap() { document.getElementById('map-output').textContent = generateMap(this.collection); }
     /** Refresh the .gro output tab. */
     updateGRO() { document.getElementById('gro-output').textContent = generateGRO(this.collection); }
+    /** Refresh the Bartender output tab. */
+    updateBartender() { document.getElementById('bartender-output').textContent = generateBartender(this.collection); }
     /**
      * Refresh the Shaker output tab, including its own duplicate-bead-name
      * warning — generatePythonAssignments writes one dict-literal line per

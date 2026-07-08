@@ -52,6 +52,7 @@ Open `http://localhost:3000` (or whichever port `serve` picks). Click **Load exa
 | `.ndx` | GROMACS index file — one group per bead, atoms by index |
 | `.map` | Martini backward/martinize mapping — `[ to ]`/`[ martini ]`/`[ atoms ]` sections |
 | Shaker dict | [Shaker](https://github.com/Lp0lp/shaker)-format Python assignment dict — bead names, types, charges, atom lists |
+| Bartender mapping | `BEADS` section + one line per bead with 1-based atom indices (repeated by weight) |
 | AA SMILES | SMILES string for each bead's fragment (requires explicit H) |
 
 ---
