@@ -3,3 +3,4 @@
 node_modules
 *_files/
 README.html
+.DS_Store
