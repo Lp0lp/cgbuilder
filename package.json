@@ -28,6 +28,7 @@
     "vitest": "^4.1.9"
   },
   "dependencies": {
+    "@rdkit/rdkit": "^2025.3.4-1.0.0",
     "marked": "^15.0.12",
     "ngl": "^2.4.0"
   }

@@ -36,7 +36,19 @@ const options = {
   target: "es2022",
   platform: "browser",
   sourcemap: true,
-  outfile: "dist/main.js",
+  outdir: "dist",
+  // Code-splitting: the dynamic import('@rdkit/rdkit') in rdkit.ts is emitted
+  // as its own chunk, loaded only on first bead-type prediction. Requires
+  // outdir (not outfile). The entry keeps its name -> dist/main.js.
+  splitting: true,
+  // RDKit's WASM binary is copied out as a build asset; the import yields its
+  // (page-relative) URL, handed to RDKit via locateFile (see rdkit.ts).
+  loader: { ".wasm": "file" },
+  // RDKit's Emscripten glue references Node built-ins (fs/crypto/...) inside
+  // dead `if (ENVIRONMENT_IS_NODE)` branches that never run in the browser.
+  // Mark them external so esbuild leaves those unreachable require() calls
+  // alone instead of trying (and failing) to resolve them.
+  external: ["fs", "path", "crypto", "module", "worker_threads"],
   logLevel: "info",
   plugins: [copyPublicPlugin],
   // Only in dev: subscribe to esbuild's SSE endpoint and reload on rebuild.

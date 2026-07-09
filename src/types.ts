@@ -105,17 +105,9 @@ export interface NGLStatic {
     Shape: new (name: string, params?: object) => Shape;
 }
 
-/** One molecule wrapper returned by RDKit_minimal's get_mol. */
-export interface RDKitMol {
-    get_smiles(): string;
-    get_descriptors(): string;
-    delete(): void;
-}
-
-/** The initialized RDKit_minimal module (see rdkit.ts). */
-export interface RDKitModule {
-    get_mol(smiles: string): RDKitMol | null;
-}
+/** The initialized RDKit_minimal module (re-exported from the npm package
+ *  so consumers keep a single `./types.js` import surface; see rdkit.ts). */
+export type { RDKitModule } from '@rdkit/rdkit';
 
 /**
  * Whole-molecule chemistry perceived from connectivity + explicit hydrogens
