@@ -28,6 +28,7 @@
     "vitest": "^4.1.9"
   },
   "dependencies": {
+    "marked": "^15.0.12",
     "ngl": "^2.4.0"
   }
 }

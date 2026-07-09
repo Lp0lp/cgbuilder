@@ -5,42 +5,57 @@
    a single ESM file at dist/main.js, then copies the static public/ assets
    over it. Type-checking is a separate step (`tsc --noEmit`, run by the
    `build` npm script before this); esbuild only strips types and bundles.
-
    Note: RDKit and marked are still loaded as browser globals (RDKit via a
    runtime <script> injection in rdkit.ts, marked via a CDN <script> tag in
-   index.html), so they are intentionally NOT bundled here. */
-import * as esbuild from 'esbuild';
-import { cpSync, rmSync } from 'node:fs';
+   index.html), so they are intentionally NOT bundled here.
 
-const watch = process.argv.includes('--watch');
+   With --watch, also starts an HTTP dev server on dist/ with live reload:
+   a rebuild re-copies public/ and pushes a browser reload via SSE. */
+import * as esbuild from "esbuild";
+import { cpSync, rmSync } from "node:fs";
+
+const watch = process.argv.includes("--watch");
+
+/** Copy public's contents into dist, alongside the freshly-built bundle.
+    Mirrors the old `cp -r public/. dist/`. Runs after every (re)build so
+    static assets stay in sync in watch mode too. */
+const copyPublicPlugin = {
+  name: "copy-public",
+  setup(build) {
+    build.onEnd(() => {
+      cpSync("public", "dist", { recursive: true });
+    });
+  },
+};
 
 /** @type {import('esbuild').BuildOptions} */
 const options = {
-    entryPoints: ['src/main.ts'],
-    bundle: true,
-    format: 'esm',
-    target: 'es2022',
-    platform: 'browser',
-    sourcemap: true,
-    outfile: 'dist/main.js',
-    logLevel: 'info',
+  entryPoints: ["src/main.ts"],
+  bundle: true,
+  format: "esm",
+  target: "es2022",
+  platform: "browser",
+  sourcemap: true,
+  outfile: "dist/main.js",
+  logLevel: "info",
+  plugins: [copyPublicPlugin],
+  // Only in dev: subscribe to esbuild's SSE endpoint and reload on rebuild.
+  ...(watch && {
+    banner: {
+      js: `new EventSource('/esbuild').addEventListener('change', () => location.reload());`,
+    },
+  }),
 };
 
-function copyPublic() {
-    // Mirror the old `cp -r public/. dist/`: copy public's contents into dist,
-    // alongside the freshly-built bundle.
-    cpSync('public', 'dist', { recursive: true });
-}
-
-rmSync('dist', { recursive: true, force: true });
+rmSync("dist", { recursive: true, force: true });
 
 if (watch) {
-    const ctx = await esbuild.context(options);
-    await ctx.rebuild();
-    copyPublic();
-    await ctx.watch();
-    console.log('esbuild: watching for changes…');
+  const ctx = await esbuild.context(options);
+  await ctx.watch(); // triggers a rebuild (and copyPublic via onEnd) on changes
+  const { host, port } = await ctx.serve({ servedir: "dist" });
+  console.log(
+    `esbuild: serving http://localhost:${port} (watching for changes…)`,
+  );
 } else {
-    await esbuild.build(options);
-    copyPublic();
+  await esbuild.build(options); // onEnd copies public
 }

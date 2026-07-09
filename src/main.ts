@@ -4,6 +4,7 @@ import { readOriginalAtomNames, bondAwareRepresentationParams } from './fileform
 import { EXAMPLE_PDB, EXAMPLE_MAPPING } from './example.js';
 import { byId } from './dom.js';
 import { NGL } from './ngl.js';
+import { marked } from 'marked';
 import type { Stage } from './types.js';
 
 /* ===========================================================================
@@ -158,7 +159,7 @@ function loadDocPage(pageEl: Element): void {
     if (!container || container.dataset.loaded) return;
     fetch(container.dataset.md ?? '')
         .then(r => r.text())
-        .then(md => { container.innerHTML = marked.parse(md); container.dataset.loaded = '1'; })
+        .then(md => { container.innerHTML = marked.parse(md, { async: false }); container.dataset.loaded = '1'; })
         .catch(() => { container.innerHTML = '<p>Could not load documentation.</p>'; });
 }
 
