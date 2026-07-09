@@ -1,16 +1,16 @@
 /* ===========================================================================
    Ambient browser globals
    ===========================================================================
-   NGL, RDKit and marked are all loaded via plain <script> tags in
-   index.html rather than ES imports, so they exist as browser globals with
-   no module of their own to import types from. Declare just the surface this
-   app touches. */
-import type { NGLStatic, RDKitModule } from './types.js';
+   RDKit and marked are still loaded via plain <script> tags (RDKit injected
+   at runtime by rdkit.ts, marked via a CDN tag in index.html) rather than ES
+   imports, so they exist as browser globals with no module of their own to
+   import types from. Declare just the surface this app touches.
+
+   (NGL is no longer here — it's now the `ngl` npm package, adapted in
+   ngl.ts.) */
+import type { RDKitModule } from './types.js';
 
 declare global {
-    /** NGL viewer library (https://nglviewer.org). */
-    const NGL: NGLStatic;
-
     /** marked markdown renderer, used for the doc pages (see main.ts). */
     const marked: { parse(markdown: string): string };
 

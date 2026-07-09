@@ -3,6 +3,7 @@ import { Visualization } from './visualization.js';
 import { readOriginalAtomNames, bondAwareRepresentationParams } from './fileformats.js';
 import { EXAMPLE_PDB, EXAMPLE_MAPPING } from './example.js';
 import { byId } from './dom.js';
+import { NGL } from './ngl.js';
 import type { Stage } from './types.js';
 
 /* ===========================================================================

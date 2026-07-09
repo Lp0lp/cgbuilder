@@ -9,6 +9,7 @@ import { generateNDX, generateMap, generateGRO, generatePythonAssignments,
          bondAwareRepresentationParams, parseShakerMapping } from './fileformats.js';
 import { loadRDKit } from './rdkit.js';
 import { byId } from './dom.js';
+import { NGL } from './ngl.js';
 import type { Bead, BeadCollection } from './bead.js';
 import type {
     Chemistry, Component, NglRepresentation, PickingProxy, RDKitModule,

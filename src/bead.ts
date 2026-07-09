@@ -7,6 +7,7 @@
    one is currently selected for editing, and a record of the structure's
    original atom names (see setOriginalAtomNames) so exported files can use
    the real source-file names rather than whatever NGL parsed them as. */
+import { NGL } from './ngl.js';
 import type { AtomProxy, Structure, Vec3 } from './types.js';
 
 /**

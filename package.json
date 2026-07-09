@@ -5,7 +5,9 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "build": "rm -rf dist && tsc && cp -r public/. dist/",
+    "typecheck": "tsc --noEmit",
+    "build": "npm run typecheck && node build.mjs",
+    "dev": "node build.mjs --watch",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -21,7 +23,11 @@
   },
   "homepage": "https://github.com/Lp0lp/cgbuilder#readme",
   "devDependencies": {
+    "esbuild": "^0.28.1",
     "typescript": "^7.0.2",
     "vitest": "^4.1.9"
+  },
+  "dependencies": {
+    "ngl": "^2.4.0"
   }
 }

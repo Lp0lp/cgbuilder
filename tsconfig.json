@@ -4,11 +4,9 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "lib": ["es2022", "dom", "dom.iterable"],
-    "rootDir": "src",
-    "outDir": "dist",
     "strict": true,
-    "sourceMap": true,
-    "allowJs": true,
+    "noEmit": true,
+    "skipLibCheck": true,
   },
   "include": ["src/**/*"],
 }
