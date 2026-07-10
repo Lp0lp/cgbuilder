@@ -1,0 +1,81 @@
+# .github/workflows/deploy.yml
+#
+# Deploys two branches to ONE GitHub Pages site, each under its own subpath:
+#   master -> https://<user>.github.io/<repo>/        (plain static, NO build)
+#   tsc    -> https://<user>.github.io/<repo>/tsc/    (TypeScript + esbuild)
+#
+# master is the original plain-JS app: its index.html loads scripts/*.js
+# directly, so it deploys as-is with no builder. Only the tsc branch is built
+# (tsc --noEmit then the esbuild driver, producing dist/). Each branch's
+# static output is staged into the right folder of a combined `site/` tree
+# that gets published in one deploy.
+
+name: Deploy branches to GitHub Pages
+
+on:
+  push:
+    branches: [master, tsc] # re-deploy the whole site when either changes
+  workflow_dispatch: # allow manual runs from the Actions tab
+
+# Permissions required by the official Pages deploy action.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One Pages deployment at a time; don't cancel an in-flight deploy.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # ---- master -> site root (plain static files, NO builder) ----
+      - name: Checkout master
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          path: master-src
+      - name: Stage master at root (no build — served as-is)
+        run: |
+          mkdir -p site
+          cp -r master-src/index.html master-src/scripts master-src/styles master-src/content site/
+
+      # ---- tsc -> /tsc (TypeScript + esbuild build) ----
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Checkout tsc
+        uses: actions/checkout@v4
+        with:
+          ref: tsc
+          path: tsc-src
+      - name: Build tsc
+        working-directory: tsc-src
+        run: |
+          npm ci          # use `npm install` if you don't commit package-lock.json
+          npm run build
+      - name: Stage tsc at /tsc
+        run: |
+          mkdir -p site/tsc
+          cp -r tsc-src/dist/. site/tsc/
+
+      # ---- publish the combined tree ----
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
