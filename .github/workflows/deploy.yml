@@ -10,7 +10,7 @@
 # static output is staged into the right folder of a combined `site/` tree
 # that gets published in one deploy.
 
-name: Deploy CGbuilder branches to GitHub Pages
+name: Deploy CG_builder branches to GitHub Pages
 
 on:
   push:
