@@ -34,7 +34,7 @@ jobs:
     steps:
       # ---- master -> site root (plain static files, NO builder) ----
       - name: Checkout master
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: master
           path: master-src
@@ -45,11 +45,11 @@ jobs:
 
       # ---- tsc -> /tsc (TypeScript + esbuild build) ----
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
       - name: Checkout tsc
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: tsc
           path: tsc-src
