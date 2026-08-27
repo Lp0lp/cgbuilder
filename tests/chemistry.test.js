@@ -266,8 +266,9 @@ describe('countResidues', () => {
 });
 
 describe('heavyAtomWeight / weightedHeavyAtomCount', () => {
-    it('weights period-4+ elements (Br, Se, I) as 2, everything else as 1', () => {
+    it('weights F as 0.5, period-4+ elements as 2, and everything else as 1', () => {
         expect(heavyAtomWeight('C')).toBe(1);
+        expect(heavyAtomWeight('F')).toBe(0.5);
         expect(heavyAtomWeight('S')).toBe(1);  // period 3 -- explicitly not weighted
         expect(heavyAtomWeight('Cl')).toBe(1); // period 3
         expect(heavyAtomWeight('Br')).toBe(2);
@@ -276,12 +277,12 @@ describe('heavyAtomWeight / weightedHeavyAtomCount', () => {
     });
 
     it('sums per-atom weights across a whole structure, excluding hydrogens', () => {
-        // 1 C + 1 Br (+ hydrogens, which never count): weighted = 1 + 2 = 3.
+        // 1 C + 1 Br + 1 F (+ hydrogens, which never count): weighted = 1 + 2 + 0.5 = 3.5
         const structure = buildStructure(
-            [{ element: 'C' }, { element: 'Br' }, { element: 'H' }, { element: 'H' }, { element: 'H' }],
-            [{ a: 0, b: 1 }, { a: 0, b: 2 }, { a: 0, b: 3 }, { a: 0, b: 4 }],
+            [{ element: 'C' }, { element: 'Br' }, { element: 'F' }, { element: 'H' }, { element: 'H' }, { element: 'H' }],
+            [{ a: 0, b: 1 }, { a: 0, b: 2 }, { a: 0, b: 3 }, { a: 0, b: 4 }, { a: 0, b: 5 }],
         );
-        expect(weightedHeavyAtomCount(structure)).toBe(3);
+        expect(weightedHeavyAtomCount(structure)).toBe(3.5);
     });
 });
 

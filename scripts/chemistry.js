@@ -713,18 +713,25 @@ export function countResidues(structure) {
 // Per the Martini 3 SI's default bead-size convention, these count as TWO
 // non-hydrogen atoms when sizing a bead, since they're physically bulkier
 // than a typical 2nd/3rd-period heavy atom (S/P/Cl/Si stay at normal weight
-// — the SI's example is iodine). Used both for whole-molecule heavy-atom
-// counts (the Mismatch panel) and per-bead weighted counts (bead size-class
-// prediction), so both stay on the same scale.
+// — the SI's example is iodine). Fluorine is another exception counting as 
+// half a heavy atom because it is smaller than a typical heavy atom.
+// Used both for whole-molecule heavy-atom counts (the Mismatch panel) 
+// and per-bead weighted counts (bead size-class prediction), so both stay on the same scale.
 const _PERIOD_4_PLUS = new Set(['BR', 'SE', 'I']);
 
 /**
- * Bead-sizing weight for one element: 2 for a period->=4 atom, 1 otherwise.
+ * Bead-sizing weight for one element: 0.5 for F, 2 for a period->=4 atom,
+ * and 1 otherwise.
  * @param {string} element - element symbol, any case
  * @returns {number} 1 or 2
  */
 export function heavyAtomWeight(element) {
-    return _PERIOD_4_PLUS.has((element || '').toUpperCase()) ? 2 : 1;
+    const normalizedElement = (element || '').toUpperCase();
+
+    if (normalizedElement === 'F') return 0.5;
+    if (_PERIOD_4_PLUS.has(normalizedElement)) return 2;
+
+    return 1;
 }
 
 /**
