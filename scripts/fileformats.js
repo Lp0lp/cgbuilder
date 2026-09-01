@@ -125,15 +125,20 @@ export function generatePythonAssignments(collection) {
 
 /**
  * Bartender mapping text: one line per bead, `<beadNumber> <idx1>,<idx2>,...`.
- * Bead numbers are 1-based. Atom indices are 1-based (GROMACS convention).
- * Atoms weighted ×N appear N times, matching the Shaker convention.
+ * Bead numbers and atom indices are 1-based. An atom shared between N beads
+ * is written as `<index>/N`. Atoms weighted ×N appear N times, matching the
+ * Shaker convention.
  * @param {object} collection - BeadCollection
  * @returns {string}
  */
 export function generateBartender(collection) {
     const lines = ['BEADS'];
     collection.beads.forEach((bead, i) => {
-        const indices = bead.expandedAtoms().map((a) => a.index + 1);
+        const indices = bead.expandedAtoms().map((atom) => {
+            const index = atom.index + 1;
+            const shares = collection.countBeadsForAtom(atom);
+            return shares > 1 ? `${index}/${shares}` : index;
+        });
         lines.push(`${i + 1} ${indices.join(',')}`);
     });
     return lines.join('\n') + '\n';

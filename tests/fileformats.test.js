@@ -13,6 +13,9 @@ function makeCollection(beads, atomNameMap = {}) {
         expandedAtomNames(bead) {
             return bead.atoms.map((a) => atomNameMap[a.index] ?? `A${a.index}`);
         },
+        countBeadsForAtom(atom) {
+            return beads.filter((bead) => bead.atoms.some((candidate) => candidate.index === atom.index)).length;
+        },
     };
 }
 
@@ -90,6 +93,15 @@ describe('generateBartender', () => {
             { name: 'B0', atoms: [a], expandedAtoms() { return [a, a]; } },
         ]);
         expect(generateBartender(collection)).toBe('BEADS\n1 5,5\n');
+    });
+
+    it('writes shared atoms as 1-based index/share-count fractions', () => {
+        const shared = { index: 5 };
+        const collection = makeCollection([
+            { name: 'B0', atoms: [shared], expandedAtoms() { return this.atoms; } },
+            { name: 'B1', atoms: [shared], expandedAtoms() { return this.atoms; } },
+        ]);
+        expect(generateBartender(collection)).toBe('BEADS\n1 6/2\n2 6/2\n');
     });
 });
 
