@@ -2,9 +2,11 @@
   "name": "cgbuilder",
   "version": "1.0.0",
   "description": "CGBuilder — Visual tool to build CG molecule models",
-  "main": "index.js",
   "type": "module",
   "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "npm run typecheck && node build.mjs",
+    "dev": "node build.mjs --watch",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -20,6 +22,13 @@
   },
   "homepage": "https://github.com/Lp0lp/cgbuilder#readme",
   "devDependencies": {
+    "esbuild": "^0.28.1",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.9"
+  },
+  "dependencies": {
+    "@rdkit/rdkit": "^2025.3.4-1.0.0",
+    "marked": "^15.0.12",
+    "ngl": "^2.4.0"
   }
 }

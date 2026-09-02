@@ -2,17 +2,20 @@ import { describe, it, expect } from 'vitest';
 import {
     perceiveChemistry, fragmentToSmiles, moleculeToSmiles, beadDonorCount, countResidues,
     heavyAtomWeight, weightedHeavyAtomCount,
-} from '../scripts/chemistry.js';
+} from '../chemistry.js';
 import { buildStructure } from './helpers/mockStructure.js';
+import type { AtomDef, BondDef } from './helpers/mockStructure.js';
+import type { AtomProxy, Structure } from '../types.js';
+import type { Bead } from '../bead.js';
 
 // Builds an n-membered ring of `ringElement` atoms, each carrying `hPerAtom`
 // explicit hydrogens except where overridden in `noH` (a set of ring
 // positions, 0-indexed) -- the common shape for the aromatic/ring fixtures
 // below. Ring atom indices are 0..n-1; any hydrogens come after.
-function ringWithH(ringElements, hPerAtom, noH = new Set()) {
+function ringWithH(ringElements: string[], hPerAtom: number, noH = new Set<number>()): Structure {
     const n = ringElements.length;
-    const atomDefs = ringElements.map((element) => ({ element }));
-    const bonds = [];
+    const atomDefs: AtomDef[] = ringElements.map((element) => ({ element }));
+    const bonds: BondDef[] = [];
     for (let i = 0; i < n; i++) bonds.push({ a: i, b: (i + 1) % n });
     for (let i = 0; i < n; i++) {
         if (noH.has(i)) continue;
@@ -24,8 +27,8 @@ function ringWithH(ringElements, hPerAtom, noH = new Set()) {
     return buildStructure(atomDefs, bonds);
 }
 
-function heavyAtomsOf(structure) {
-    const out = [];
+function heavyAtomsOf(structure: Structure): AtomProxy[] {
+    const out: AtomProxy[] = [];
     structure.eachAtom((a) => { if (a.element !== 'H') out.push(a); });
     return out;
 }
@@ -46,7 +49,7 @@ describe('perceiveChemistry — gating on explicit hydrogens', () => {
 
     it('returns the empty/unavailable shape for a missing or malformed structure', () => {
         expect(perceiveChemistry(null).available).toBe(false);
-        expect(perceiveChemistry({}).available).toBe(false);
+        expect(perceiveChemistry({} as unknown as Structure).available).toBe(false);
     });
 });
 
@@ -113,11 +116,11 @@ describe('perceiveChemistry — ring detection and aromaticity', () => {
         // no H); C4(5),C5(6),C6(7),C7(8) are the extra benzo-ring carbons.
         // This is exactly the class of molecule (a fused heteroaromatic ring)
         // that motivated the original DFS->BFS cycle-finder fix.
-        const atomDefs = [
+        const atomDefs: AtomDef[] = [
             { element: 'O' }, { element: 'C' }, { element: 'C' }, { element: 'C' }, { element: 'C' },
             { element: 'C' }, { element: 'C' }, { element: 'C' }, { element: 'C' },
         ];
-        const bonds = [
+        const bonds: BondDef[] = [
             { a: 0, b: 1 }, { a: 1, b: 2 }, { a: 2, b: 3 }, { a: 3, b: 4 }, { a: 4, b: 0 }, // furan ring
             { a: 3, b: 5 }, { a: 5, b: 6 }, { a: 6, b: 7 }, { a: 7, b: 8 }, { a: 8, b: 4 }, // benzo ring
         ];
@@ -204,8 +207,8 @@ describe('fragmentToSmiles', () => {
     });
 
     it('closes a ring with a digit for a 3-membered carbocycle', () => {
-        const atomDefs = [{ element: 'C' }, { element: 'C' }, { element: 'C' }];
-        const bonds = [{ a: 0, b: 1 }, { a: 1, b: 2 }, { a: 2, b: 0 }];
+        const atomDefs: AtomDef[] = [{ element: 'C' }, { element: 'C' }, { element: 'C' }];
+        const bonds: BondDef[] = [{ a: 0, b: 1 }, { a: 1, b: 2 }, { a: 2, b: 0 }];
         for (let i = 0; i < 3; i++) {
             for (let h = 0; h < 2; h++) {
                 atomDefs.push({ element: 'H' });
@@ -246,7 +249,7 @@ describe('beadDonorCount', () => {
             [{ a: 0, b: 2 }, { a: 0, b: 3 }, { a: 1, b: 3 }],
         );
         const chem = perceiveChemistry(structure);
-        const bead = { atoms: [structure.getAtomProxy(0), structure.getAtomProxy(1)] };
+        const bead = { atoms: [structure.getAtomProxy(0), structure.getAtomProxy(1)] } as unknown as Bead;
         expect(beadDonorCount(bead, chem)).toBe(1);
     });
 });

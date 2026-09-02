@@ -12,23 +12,28 @@ Load an all-atom structure, map beads interactively in a 3D viewer, get automate
 
 - **3D viewer** — interactive NGL.js viewport with licorice AA representation and coloured CG bead spheres overlaid in real time.
 - **Weighted atom assignment** — click an atom once to add it to a bead; click again to increase its weight (pulling the bead centre toward that atom); Shift+click to reduce weight or remove.
-- **Bead-type prediction** — bead type prediction inspired by [AutoMartini](https://doi.org/10.1039/C9ME00183B), using RDKit fragment free-energy-of-transfer heuristics. Suggestion chips appear next to each field; applying them is always an explicit click.
+- **Bead-type prediction** — inspired by [AutoMartini](https://doi.org/10.1039/C9ME00183B), using RDKit fragment free-energy-of-transfer heuristics. Suggestion chips appear next to each field; applying them is always an explicit click.
 - **SASA comparison** — built-in Shrake-Rupley solver computes per-bead SASA and compares it against the all-atom reference surface rendered by NGL.
 - **Live validation** — multi-residue warnings, capped-heteroatom bond-cutting warnings, atom-overlap detection, and bead-count/size guidelines displayed as you work.
 - **[Shaker](https://github.com/Lp0lp/shaker)-format import** — paste an existing mapping to restore beads, types, charges, and atom assignments automatically.
-- **Export** — `.gro` (CG coordinates), `.ndx` (atom-index groups), `.map` (martinize/backward mapping), [Shaker](https://github.com/Lp0lp/shaker) Python dict, and AA SMILES (for fragment databases).
-- **No build step** — plain ES modules served from a static file server.
+- **Export** — `.gro` (CG coordinates), `.ndx` (atom-index groups), `.map` (martinize/backward mapping), [Shaker](https://github.com/Lp0lp/shaker) Python dict, [Bartender](https://github.com/Martini-Force-Field-Initiative/Bartender) mapping, and AA SMILES.
 
 ---
 
 ## Quick start
 
 ```bash
-# Any static file server works — file:// won't, because ES modules require HTTP.
-npx serve .          # or: python3 -m http.server 8080
+npm install
+npm run dev      # builds and serves on http://localhost:8000 with live reload
 ```
 
-Open `http://localhost:3000` (or whichever port `serve` picks). Click **Load example** to try a pre-built Martini 3 mapping right away.
+Or for a one-off production build:
+
+```bash
+npm run build    # type-checks then bundles into dist/
+```
+
+Serve `dist/` with any static file server.
 
 ---
 
@@ -60,22 +65,27 @@ Open `http://localhost:3000` (or whichever port `serve` picks). Click **Load exa
 ## Project layout
 
 ```
-index.html              entry point
-styles/main.css         all styling, CSS variables, dark-mode tokens
-scripts/
-  main.js               app bootstrap, file loading, event wiring
-  visualization.js      NGL stage wrapper, bead rendering, UI interaction
-  bead.js               Bead / BeadCollection
-  chemistry.js          bond perception, valence assignment, RDKit SMILES
-  prediction.js         bead-type prediction heuristics
-  sasa.js               Shrake-Rupley SASA solver 
-  fileformats.js        PDB/GRO/SDF/MOL2 parsing, .gro/.ndx/.map export
-  rdkit.js              lazy RDKit-WASM loader (CDN, cached promise)
-  example.js            bundled example molecule (PDB + mapping)
-content/
-  howto.md              in-app How to use documentation
-  guidelines.md         Martini 3 bead-type parameterization reference material
-tests/                  Vitest unit tests (87 tests across 6 files)
+public/                 static assets copied into dist/ at build time
+  index.html            entry point
+  main.css              all styling, CSS variables, dark-mode tokens
+  content/
+    howto.md            in-app How to use documentation
+    guidelines.md       Martini 3 bead-type parameterization reference material
+src/                    TypeScript source
+  main.ts               app bootstrap, file loading, event wiring
+  visualization.ts      NGL stage wrapper, bead rendering, UI interaction
+  bead.ts               Bead / BeadCollection data model
+  chemistry.ts          bond perception, valence assignment, RDKit SMILES
+  prediction.ts         bead-type prediction heuristics
+  sasa.ts               Shrake-Rupley SASA solver
+  fileformats.ts        PDB/GRO/SDF/MOL2 parsing, .gro/.ndx/.map/.bartender export
+  rdkit.ts              lazy RDKit-WASM loader (npm, code-split chunk)
+  ngl.ts                NGL npm adapter (replaces browser global)
+  dom.ts                typed getElementById helper
+  types.ts              shared interfaces (NGL, RDKit, chemistry, bead shapes)
+  example.ts            bundled example molecule (PDB + mapping)
+  tests/                Vitest unit tests (89 tests across 6 files)
+build.mjs               esbuild driver (bundling + dev server)
 ```
 
 ---
@@ -83,26 +93,24 @@ tests/                  Vitest unit tests (87 tests across 6 files)
 ## Running tests
 
 ```bash
-npm test          # single run
+npm test             # single run
 npm run test:watch   # watch mode
 ```
 
-Tests cover `bead.js`, `chemistry.js`, `fileformats.js`, `prediction.js`, `sasa.js`, and `visualization.js`. No browser or DOM dependency — the test suite runs in Node via Vitest with minimal stubs for NGL and RDKit globals.
+Tests cover all modules. No browser or DOM dependency — the suite runs in Node via Vitest with minimal stubs for NGL and RDKit globals.
 
 ---
 
 ## Dependencies
 
-All runtime dependencies are CDN-loaded; nothing to `npm install` for production use.
+| Library | Purpose |
+|---------|---------|
+| [NGL](https://github.com/nglviewer/ngl) | 3D molecular viewer (npm, bundled) |
+| [@rdkit/rdkit](https://github.com/rdkit/rdkit-js) | SMILES generation and fragment canonicalisation (npm, code-split) |
+| [marked](https://github.com/markedjs/marked) | Markdown rendering for in-app docs (CDN) |
+| [Inter](https://fonts.google.com/specimen/Inter) | UI typeface (Google Fonts) |
 
-| Library | Version | Purpose |
-|---------|---------|---------|
-| [NGL.js](https://github.com/nglviewer/ngl) | v2.0.0-dev.39 | 3D molecular viewer |
-| [RDKit.js](https://github.com/rdkit/rdkit-js) | latest CDN | SMILES generation and fragment canonicalisation |
-| [marked](https://github.com/markedjs/marked) | v15 | Markdown rendering for in-app docs |
-| [Inter](https://fonts.google.com/specimen/Inter) | — | UI typeface (Google Fonts) |
-
-`devDependencies`: [Vitest](https://vitest.dev/) for the test suite.
+`devDependencies`: [TypeScript](https://www.typescriptlang.org/), [esbuild](https://esbuild.github.io/), [Vitest](https://vitest.dev/).
 
 ---
 

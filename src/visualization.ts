@@ -8,18 +8,25 @@ import { generateNDX, generateMap, generateGRO, generatePythonAssignments,
          generateBartender, download, copyTextToClipboard,
          bondAwareRepresentationParams, parseShakerMapping } from './fileformats.js';
 import { loadRDKit } from './rdkit.js';
+import { byId } from './dom.js';
+import { NGL } from './ngl.js';
+import type { Bead, BeadCollection } from './bead.js';
+import type {
+    Chemistry, Component, NglRepresentation, PickingProxy, RDKitModule,
+    Stage, StructureComponent,
+} from './types.js';
 
 /* ===========================================================================
    Visualization — the main UI controller
    ===========================================================================
    Ties the bead-editing UI (the bead list panel, its fields and buttons) to
-   the 3D viewer (NGL) and to the other modules: chemistry.js for bond order/
-   charge perception, prediction.js for bead-type suggestions, sasa.js for
-   the AA/CG surface area comparison, fileformats.js for import/export. Most
+   the 3D viewer (NGL) and to the other modules: chemistry.ts for bond order/
+   charge perception, prediction.ts for bead-type suggestions, sasa.ts for
+   the AA/CG surface area comparison, fileformats.ts for import/export. Most
    of this file is DOM wiring and NGL representation management rather than
    novel algorithm — the one piece of real decision logic living here is
    _predictOneBead (the table-vs-Crippen lookup strategy for one bead),
-   which belongs conceptually with prediction.js/chemistry.js even though it
+   which belongs conceptually with prediction.ts/chemistry.ts even though it
    lives in this file. */
 
 /**
@@ -27,10 +34,9 @@ import { loadRDKit } from './rdkit.js';
  * read from the type code's first letter (or second, for a size-prefixed
  * type like "SP2a" / "TC5"). Matches the bead-card colour-coding described
  * in howto.md.
- * @param {string} beadType - Martini type code, e.g. "SP2a"
- * @returns {[number,number,number]}
+ * @param beadType - Martini type code, e.g. "SP2a"
  */
-export function typeColor(beadType) {
+export function typeColor(beadType: string): [number, number, number] {
     const t = (beadType || '').toUpperCase();
     const cls = (t[0] === 'S' || t[0] === 'T') ? t[1] : t[0];
     switch (cls) {
@@ -49,12 +55,11 @@ export function typeColor(beadType) {
  * `className`, since DOM event targets are often a child of the element
  * the handler actually cares about (e.g. a click on a bead card's input
  * should still resolve to the `.bead-view` <li> for that bead).
- * @param {Element} element
- * @param {string} className
- * @returns {Element|null}
+ * @param element
+ * @param className
  */
-export function findParentWithClass(element, className) {
-    let node = element;
+export function findParentWithClass(element: Element | null, className: string): Element | null {
+    let node: Element | null = element;
     while (node) {
         if (node.classList.contains(className)) return node;
         node = node.parentElement;
@@ -65,15 +70,15 @@ export function findParentWithClass(element, className) {
 /**
  * Wire a tab's Copy button to copy the text of its output <pre>, with the
  * same "Copied!"/"Failed" button-text feedback used across all output tabs.
- * @param {string} buttonId
- * @param {string} outputId - id of the <pre> holding the text to copy
+ * @param buttonId
+ * @param outputId - id of the <pre> holding the text to copy
  */
-function wireCopyButton(buttonId, outputId) {
-    const button = document.getElementById(buttonId);
+function wireCopyButton(buttonId: string, outputId: string): void {
+    const button = byId(buttonId);
     if (!button) return;
     button.onclick = async () => {
         const originalText = button.textContent;
-        const text = document.getElementById(outputId).textContent || "";
+        const text = byId(outputId).textContent || "";
         try {
             await copyTextToClipboard(text);
             button.textContent = "Copied!";
@@ -92,19 +97,39 @@ function wireCopyButton(buttonId, outputId) {
 /**
  * Main UI controller: owns the NGL stage/representations, the bead-list DOM,
  * and the cached chemistry/SASA state for the currently loaded structure.
- * One instance is created per loaded molecule (see main.js).
+ * One instance is created per loaded molecule (see main.ts).
  */
 export class Visualization {
+    collection: BeadCollection;
+    representation: NglRepresentation | null;
+    stage: Stage;
+    shapeComp: Component | null;
+    showCG: boolean;
+    showCGLabels: boolean;
+
+    // Solvent-accessible surface area (SASA) state.
+    component: StructureComponent | null;   // the loaded AA structure component
+    aaSurface: NglRepresentation | null;    // NGL surface representation on the AA structure
+    showAASurface: boolean;
+    cgSurfaceComp: Component | null;        // synthetic bead component carrying the CG surface
+    showCGSurface: boolean;
+    private _cgSurfaceToken: number;        // guards against stale async surface loads
+    private _aaSASAValue: number | null;    // cached; recomputed only on molecule load
+    nHeavyAtoms: number;
+    private _canonTable: Record<string, number> | null; // cached RDKit-canonicalized lookup table
+    chemistry: Chemistry | null;
+    aa_labels: NglRepresentation | null;
+
     /**
      * Wires up every static UI control that exists before a molecule is
      * loaded (label/CG/surface toggles, the Predict button, the output
      * tabs' Download/Copy buttons). Per-molecule state (the NGL component,
      * cached chemistry/SASA values) is populated later by attachRepresentation,
      * once a structure actually exists.
-     * @param {object} collection - BeadCollection for this molecule
-     * @param {object} stage - NGL Stage
+     * @param collection - BeadCollection for this molecule
+     * @param stage - NGL Stage
      */
-    constructor(collection, stage) {
+    constructor(collection: BeadCollection, stage: Stage) {
         this.collection = collection;
         this.representation = null;
         this.stage = stage;
@@ -122,50 +147,52 @@ export class Visualization {
         this._aaSASAValue = null;     // cached; recomputed only on molecule load
         this.nHeavyAtoms = 0;
         this._canonTable = null;      // cached RDKit-canonicalized lookup table, see _loadPredictionDeps
+        this.chemistry = null;
+        this.aa_labels = null;
 
-        let toggleCGLabels = document.getElementById('toggle-cg-labels');
-        toggleCGLabels.onchange = (e) => { this.showCGLabels = e.target.checked; this.drawCG(); };
+        const toggleCGLabels = byId<HTMLInputElement>('toggle-cg-labels');
+        toggleCGLabels.onchange = (e) => { this.showCGLabels = (e.target as HTMLInputElement).checked; this.drawCG(); };
         toggleCGLabels.checked = false;
         toggleCGLabels.disabled = false;
 
-        let toggleCG = document.getElementById('toggle-cg');
+        const toggleCG = byId<HTMLInputElement>('toggle-cg');
         toggleCG.onchange = (event) => this.onToggleCG(event);
         toggleCG.checked = false;
         toggleCG.disabled = false;
 
-        let toggleAASurface = document.getElementById('toggle-aa-surface');
+        const toggleAASurface = byId<HTMLInputElement>('toggle-aa-surface');
         if (toggleAASurface) {
             toggleAASurface.onchange = (event) => this.onToggleAASurface(event);
             toggleAASurface.checked = false;
             toggleAASurface.disabled = false;
         }
 
-        let toggleCGSurface = document.getElementById('toggle-cg-surface');
+        const toggleCGSurface = byId<HTMLInputElement>('toggle-cg-surface');
         if (toggleCGSurface) {
             toggleCGSurface.onchange = (event) => this.onToggleCGSurface(event);
             toggleCGSurface.checked = false;
             toggleCGSurface.disabled = false;
         }
 
-        const predictBtn = document.getElementById('predict-types');
+        const predictBtn = byId<HTMLButtonElement>('predict-types');
         if (predictBtn) {
             predictBtn.onclick = () => this.onPredictTypes();
             predictBtn.disabled = false;
         }
 
-        document.getElementById('dl-ndx').onclick = () =>
+        byId<HTMLButtonElement>('dl-ndx').onclick = () =>
             download('cgbuilder.ndx', generateNDX(this.collection));
-        document.getElementById('dl-map').onclick = () =>
+        byId<HTMLButtonElement>('dl-map').onclick = () =>
             download('cgbuilder.map', generateMap(this.collection));
-        document.getElementById('dl-gro').onclick = () =>
+        byId<HTMLButtonElement>('dl-gro').onclick = () =>
             download('cgbuilder.gro', generateGRO(this.collection));
-        document.getElementById('dl-py').onclick = () =>
+        byId<HTMLButtonElement>('dl-py').onclick = () =>
             download('cgbuilder_assignments.py', generatePythonAssignments(this.collection));
-        document.getElementById('dl-bartender').onclick = () =>
+        byId<HTMLButtonElement>('dl-bartender').onclick = () =>
             download('cgbuilder.bartender', generateBartender(this.collection));
 
-        document.getElementById('dl-smiles').onclick = () =>
-            download('cgbuilder.smi', document.getElementById('smiles-output').textContent || "");
+        byId<HTMLButtonElement>('dl-smiles').onclick = () =>
+            download('cgbuilder.smi', byId('smiles-output').textContent || "");
 
         wireCopyButton('copy-py', 'py-output');
         wireCopyButton('copy-bartender', 'bartender-output');
@@ -176,9 +203,9 @@ export class Visualization {
     }
 
     /** Shortcut for `this.collection.currentBead`. */
-	get currentBead() {
-	    return this.collection.currentBead;
-	}
+    get currentBead(): Bead | null {
+        return this.collection.currentBead;
+    }
 
     /**
      * Set up everything that depends on a just-loaded AA structure: the
@@ -190,19 +217,19 @@ export class Visualization {
      * writing real bond orders back onto the structure (_reflectBondOrders)
      * so the viewer shows real double/triple bonds instead of NGL's
      * geometry-based guess.
-     * @param {object} component - NGL StructureComponent for the loaded molecule
+     * @param component - NGL StructureComponent for the loaded molecule
      */
-    attachRepresentation(component) {
+    attachRepresentation(component: StructureComponent): void {
         this.component = component;
         this.representation = component.addRepresentation(
-	        "ball+stick",
+            "ball+stick",
             bondAwareRepresentationParams({
-	            sele: "not all",
-	            radiusScale: 1.6,
-	            color: "#f4b642",
-	            opacity: 0.6
+                sele: "not all",
+                radiusScale: 1.6,
+                color: "#f4b642",
+                opacity: 0.6
             }),
-	    );
+        );
 
         this.aaSurface = component.addRepresentation("surface", {
             surfaceType: "sas",
@@ -218,36 +245,37 @@ export class Visualization {
         this.updateSASA();
 
         // Chemistry perception (bond order / aromaticity / charge) requires
-        // explicit hydrogens — see chemistry.js's module comment for why.
+        // explicit hydrogens — see chemistry.ts's module comment for why.
         // Computed once per load and cached, rather than per Predict click,
         // since it's also used to reflect real bond orders in the viewer.
-        this.chemistry = perceiveChemistry(component.structure);
+        const chem = perceiveChemistry(component.structure);
+        this.chemistry = chem;
 
-        const predictBtn = document.getElementById('predict-types');
+        const predictBtn = byId<HTMLButtonElement>('predict-types');
         if (predictBtn) {
-            predictBtn.disabled = !this.chemistry.available;
-            predictBtn.title = this.chemistry.available
+            predictBtn.disabled = !chem.available;
+            predictBtn.title = chem.available
                 ? ''
                 : 'Bead-type prediction needs a structure with explicit hydrogen atoms '
                 + '(e.g. a GROMACS .gro file, or a PDB run through a protonation tool).';
         }
 
-        const residueWarning = document.getElementById('multi-residue-warning');
+        const residueWarning = byId('multi-residue-warning');
         if (residueWarning) residueWarning.hidden = countResidues(component.structure) <= 1;
 
-        const smilesEl = document.getElementById('smiles-output');
+        const smilesEl = byId('smiles-output');
         if (smilesEl) {
-            if (!this.chemistry.available) {
+            if (!chem.available) {
                 smilesEl.textContent = 'Needs a structure with explicit hydrogen atoms '
                     + '(e.g. a GROMACS .gro file, or a PDB run through a protonation tool).';
             } else {
-                const smiles = moleculeToSmiles(component.structure, this.chemistry);
+                const smiles = moleculeToSmiles(component.structure, chem);
                 smilesEl.textContent = smiles
                     ?? 'Could not generate a single SMILES — structure has more than one disconnected fragment.';
             }
         }
 
-        if (this.chemistry.available) this._reflectBondOrders(component);
+        if (chem.available) this._reflectBondOrders(component);
     }
 
     /**
@@ -256,15 +284,17 @@ export class Visualization {
      * representations so the viewer's ball+stick rendering shows real
      * double/triple bonds instead of whatever NGL guessed from a bare
      * PDB/GRO load (typically all-single).
-     * @param {object} component - NGL StructureComponent
+     * @param component - NGL StructureComponent
      */
-    _reflectBondOrders(component) {
+    _reflectBondOrders(component: StructureComponent): void {
+        const chem = this.chemistry;
+        if (!chem) return;
         const structure = component.structure;
         structure.eachAtom((atom) => {
             if (typeof atom.eachBond !== 'function') return;
             atom.eachBond((bond) => {
                 const key = `${Math.min(bond.atomIndex1, bond.atomIndex2)}-${Math.max(bond.atomIndex1, bond.atomIndex2)}`;
-                const order = this.chemistry.bondOrders.get(key);
+                const order = chem.bondOrders.get(key);
                 if (order !== undefined) bond.bondOrder = order;
             });
         });
@@ -274,19 +304,19 @@ export class Visualization {
     /**
      * Show/hide the duplicate-atom-name warning for a just-loaded
      * structure. Duplicate names are a real problem since generateMap and
-     * generatePythonAssignments (fileformats.js) both group/reference atoms
+     * generatePythonAssignments (fileformats.ts) both group/reference atoms
      * by name, not index.
-     * @param {object} structure - NGL-style structure (eachAtom)
+     * @param structure - NGL-style structure (eachAtom)
      */
-    checkAtomNameUniqueness(structure) {
-        const seen = new Set();
+    checkAtomNameUniqueness(structure: StructureComponent['structure']): void {
+        const seen = new Set<string>();
         let hasDupes = false;
         structure.eachAtom(ap => {
             const name = this.collection.atomName(ap);
             if (seen.has(name)) hasDupes = true;
             else seen.add(name);
         });
-        document.getElementById('atom-name-warning').hidden = !hasDupes;
+        byId('atom-name-warning').hidden = !hasDupes;
     }
 
     /**
@@ -295,9 +325,9 @@ export class Visualization {
      * so this stays on the same scale as bead-type-implied expected counts
      * (a bead correctly sized small around a bromine shouldn't look
      * "over-mapped" just because the raw atom count is low).
-     * @param {object} structure - NGL-style structure (eachAtom)
+     * @param structure - NGL-style structure (eachAtom)
      */
-    countHeavyAtoms(structure) {
+    countHeavyAtoms(structure: StructureComponent['structure']): void {
         this.nHeavyAtoms = weightedHeavyAtomCount(structure);
     }
 
@@ -305,9 +335,9 @@ export class Visualization {
      * Add a (initially hidden) per-atom label representation showing the
      * structure's original atom names (see BeadCollection.structureAtomNames),
      * and wire its visibility toggle.
-     * @param {object} component - NGL StructureComponent
+     * @param component - NGL StructureComponent
      */
-    attachAALabels(component) {
+    attachAALabels(component: StructureComponent): void {
         this.aa_labels = component.addRepresentation("label", {
             labelType: "text",
             labelText: this.collection.structureAtomNames(component.structure),
@@ -315,7 +345,7 @@ export class Visualization {
             visible: false,
         });
 
-        const toggle = document.getElementById('toggle-aa-labels');
+        const toggle = byId<HTMLInputElement>('toggle-aa-labels');
         if (toggle) {
             toggle.checked = false;
             toggle.disabled = false;
@@ -324,32 +354,31 @@ export class Visualization {
     }
 
     /** "Solid beads" toggle: opacity only, see drawCG. */
-    onToggleCG(event) {
-        this.showCG = event.target.checked;
+    onToggleCG(event: Event): void {
+        this.showCG = (event.target as HTMLInputElement).checked;
         this.drawCG();
     }
 
     /** "AA surface" toggle: just flips visibility, the representation already exists. */
-    onToggleAASurface(event) {
-        this.showAASurface = event.target.checked;
+    onToggleAASurface(event: Event): void {
+        this.showAASurface = (event.target as HTMLInputElement).checked;
         if (this.aaSurface) this.aaSurface.setVisibility(this.showAASurface);
     }
 
     /** "CG surface" toggle: the representation is synthetic and rebuilt on demand, see drawCGSurface. */
-    onToggleCGSurface(event) {
-        this.showCGSurface = event.target.checked;
+    onToggleCGSurface(event: Event): void {
+        this.showCGSurface = (event.target as HTMLInputElement).checked;
         this.drawCGSurface();
     }
 
     /**
-     * Load RDKit (cached across the whole page session, see rdkit.js) and
+     * Load RDKit (cached across the whole page session, see rdkit.ts) and
      * this molecule's RDKit-canonicalized lookup table (cached on `this`,
      * since buildCanonTable re-canonicalizes ~150 table entries through
      * RDKit's WASM module every time it's called — too expensive to redo on
      * every individual bead's "Predict" click).
-     * @returns {Promise<{RDKit: object, canonTable: Object<string,number>}>}
      */
-    async _loadPredictionDeps() {
+    async _loadPredictionDeps(): Promise<{ RDKit: RDKitModule; canonTable: Record<string, number> }> {
         const RDKit = await loadRDKit();
         if (!this._canonTable) this._canonTable = buildCanonTable(RDKit);
         return { RDKit, canonTable: this._canonTable };
@@ -360,8 +389,8 @@ export class Visualization {
      * lookup table (cached, see _loadPredictionDeps), then run
      * _predictOneBead for every bead in the collection.
      */
-    async onPredictTypes() {
-        const btn = document.getElementById('predict-types');
+    async onPredictTypes(): Promise<void> {
+        const btn = byId<HTMLButtonElement>('predict-types');
         if (!this.chemistry || !this.chemistry.available) return;
         const originalText = btn.textContent;
         btn.disabled = true;
@@ -395,9 +424,9 @@ export class Visualization {
      * writing the results onto `bead.suggestedType`/`bead.suggestedCharge`
      * rather than returning them — the bead-card UI reads these directly to
      * show the suggestion chips. The actual decision logic (this is where
-     * prediction.js's port of AutoMartini's algorithm meets a real bead):
+     * prediction.ts's port of AutoMartini's algorithm meets a real bead):
      *
-     *   1. Build the bead's fragment SMILES (chemistry.js's fragmentToSmiles,
+     *   1. Build the bead's fragment SMILES (chemistry.ts's fragmentToSmiles,
      *      H-capped at the bead boundary) and get RDKit's canonical form
      *      plus descriptors (Crippen logP, H-bond acceptor count) from it.
      *   2. Derive charge/halogen-presence/ring-membership/weighted heavy
@@ -419,13 +448,14 @@ export class Visualization {
      * in the bead's own charge field — e.g. a deprotonated carboxylate
      * detected from explicit hydrogens that the user hasn't reflected yet.
      * Only ever a suggestion: applying it is a separate, explicit UI action.
-     * @param {object} bead - a Bead with at least one atom assigned
-     * @param {object} RDKit - the loaded RDKit_minimal module
-     * @param {Object<string,number>} canonTable - buildCanonTable's result
+     * @param bead - a Bead with at least one atom assigned
+     * @param RDKit - the loaded RDKit_minimal module
+     * @param canonTable - buildCanonTable's result
      */
-    _predictOneBead(bead, RDKit, canonTable) {
+    _predictOneBead(bead: Bead, RDKit: RDKitModule, canonTable: Record<string, number>): void {
         if (bead.atoms.length === 0) return;
         const chemistry = this.chemistry;
+        if (!chemistry) return;
 
         const smiles = fragmentToSmiles(bead.atoms, chemistry);
         if (!smiles) return;
@@ -446,7 +476,7 @@ export class Visualization {
         const inRing     = bead.atoms.some(a => chemistry.aromaticAtoms.has(a.index));
         const heavyAtoms = bead.atoms.filter(a => (a.element || 'C').toUpperCase() !== 'H');
         // Period->=4 atoms (Br/Se/I...) count as 2 toward bead size — see
-        // chemistry.js's heavyAtomWeight. A ring or branch point (>=3 heavy
+        // chemistry.ts's heavyAtomWeight. A ring or branch point (>=3 heavy
         // neighbours anywhere in the bead) downgrades a weighted count of 4
         // from R to S, per the Martini 3 SI's bead-size convention.
         const weightedHeavyCount = heavyAtoms.reduce((s, a) => s + heavyAtomWeight(a.element), 0);
@@ -465,9 +495,9 @@ export class Visualization {
         // non-aromatic entries still match. Real double bonds (inRing=false)
         // skip the aromatic lookup and fall through to Crippen → TC4.
         let lookupKey = canonSmiles;
-        let tableVal;
+        let tableVal: number | undefined;
         if (inRing) {
-            const keys = new Set();
+            const keys = new Set<string>();
             for (const a of bead.atoms) {
                 if (!chemistry.aromaticAtoms.has(a.index)) continue;
                 const k = fragmentToSmiles(bead.atoms, chemistry, {
@@ -481,7 +511,7 @@ export class Visualization {
         }
         if (tableVal === undefined) tableVal = canonTable[canonSmiles];
 
-        let deltaF, source;
+        let deltaF: number, source: string;
         if (tableVal !== undefined) {
             deltaF = tableVal;
             source = 'table';
@@ -511,10 +541,10 @@ export class Visualization {
      * Per-bead "Predict" button handler — same RDKit-load-then-predict
      * flow as onPredictTypes (see _loadPredictionDeps), just for a single
      * bead.
-     * @param {object} bead
-     * @param {Element} btn - the bead's own Predict button (for in-place feedback)
+     * @param bead
+     * @param btn - the bead's own Predict button (for in-place feedback)
      */
-    async onPredictBeadType(bead, btn) {
+    async onPredictBeadType(bead: Bead, btn: HTMLButtonElement): Promise<void> {
         if (!this.chemistry || !this.chemistry.available) return;
         const originalText = btn.textContent;
         btn.disabled = true;
@@ -536,7 +566,7 @@ export class Visualization {
     /**
      * (Re)build the CG surface representation: removes any existing one,
      * and, if the toggle is on, serializes the beads to a synthetic PDB
-     * (sasa.js's beadsToPDB — the B-factor-as-radius trick, see its own
+     * (sasa.ts's beadsToPDB — the B-factor-as-radius trick, see its own
      * comment) and loads that into NGL as a new component carrying just
      * the surface representation. `_cgSurfaceToken` guards against a race
      * where the bead mapping changes again while the async `loadFile` is
@@ -544,16 +574,16 @@ export class Visualization {
      * already started (or the toggle's been switched off) is discarded
      * instead of replacing the current surface.
      */
-    drawCGSurface() {
+    drawCGSurface(): void {
         if (this.cgSurfaceComp != null) {
             this.stage.removeComponent(this.cgSurfaceComp);
             this.cgSurfaceComp = null;
         }
         if (!this.showCGSurface) return;
-        let pdb = beadsToPDB(this.collection);
+        const pdb = beadsToPDB(this.collection);
         if (!pdb) return;
 
-        let token = ++this._cgSurfaceToken;
+        const token = ++this._cgSurfaceToken;
         this.stage
             .loadFile(new Blob([pdb], {type: "text/plain"}), {ext: "pdb"})
             .then((comp) => {
@@ -577,26 +607,27 @@ export class Visualization {
     }
 
     /** "AA labels" toggle. */
-    onToggleAALabels(event) {
-        this.aa_labels.setVisibility(event.target.checked);
+    onToggleAALabels(event: Event): void {
+        this.aa_labels?.setVisibility((event.target as HTMLInputElement).checked);
     }
 
     /**
-     * NGL stage click handler (see stage.signals.clicked in main.js):
+     * NGL stage click handler (see stage.signals.clicked in main.ts):
      * clicking an atom adds it to the current bead (or, with shift held,
      * removes it); clicking empty space deselects the current bead. A
      * click that hits an atom while no bead is selected is a no-op rather
      * than implicitly selecting one.
-     * @param {object} pickingProxy - NGL PickingProxy for the click, or
-     *   null/falsy for a click that hit nothing
+     * @param pickingProxy - NGL PickingProxy for the click, or
+     *   null/undefined for a click that hit nothing
      */
-    onClick(pickingProxy) {
+    onClick(pickingProxy: PickingProxy | undefined): void {
         if (pickingProxy && pickingProxy.atom) {
-            if (!this.currentBead) return;
+            const bead = this.currentBead;
+            if (!bead) return;
             if (pickingProxy.mouse && pickingProxy.mouse.shiftKey) {
-                this.currentBead.removeAtom(pickingProxy.atom);
+                bead.removeAtom(pickingProxy.atom);
             } else {
-                this.currentBead.addAtom(pickingProxy.atom);
+                bead.addAtom(pickingProxy.atom);
             }
             this.updateSelection();
         } else if (!pickingProxy) {
@@ -606,20 +637,20 @@ export class Visualization {
     }
 
     /** "New bead" button handler — the new bead becomes selected (see BeadCollection.newBead). */
-	onNewBead(event) {
-	    this.collection.newBead();
-	    this.updateSelection();
-	}
+    onNewBead(event: Event): void {
+        this.collection.newBead();
+        this.updateSelection();
+    }
 
     /**
      * Index of `node` within #bead-list's children — matches its position
      * in this.collection.beads, since createBeadList always rebuilds the
      * two in lockstep.
-     * @param {Node} node
-     * @returns {number} -1 if not found
+     * @param node
+     * @returns -1 if not found
      */
-    _beadIndexForNode(node) {
-        const nodes = document.getElementById("bead-list").childNodes;
+    _beadIndexForNode(node: Node | null): number {
+        const nodes = byId("bead-list").childNodes;
         let index = 0;
         for (const child of nodes) {
             if (child === node) return index;
@@ -633,13 +664,13 @@ export class Visualization {
      * already the current one (a toggle). Ignores clicks that land on an
      * actual form control (input/button/etc.) within the card, so editing
      * a field doesn't also change the selection.
-     * @param {Event} event
+     * @param event
      */
-    onBeadSelected(event) {
-        const tag = event.target.tagName;
+    onBeadSelected(event: Event): void {
+        const tag = (event.target as HTMLElement).tagName;
         if (tag === "INPUT" || tag === "BUTTON" || tag === "FORM" || tag === "LABEL") return;
 
-        const realTarget = findParentWithClass(event.target, "bead-view");
+        const realTarget = findParentWithClass(event.target as Element, "bead-view");
         const index = this._beadIndexForNode(realTarget);
         if (index >= 0) {
             if (this.collection.beads[index] === this.currentBead) {
@@ -656,15 +687,15 @@ export class Visualization {
      * there's always at least one bead (creates a fresh one if the
      * collection would otherwise be empty), and re-selects bead 0 if the
      * bead being removed was the selected one.
-     * @param {Event} event
+     * @param event
      */
-	onBeadRemove(event) {
-        const realTarget = findParentWithClass(event.target, "bead-view");
+    onBeadRemove(event: Event): void {
+        const realTarget = findParentWithClass(event.target as Element, "bead-view");
         const selected = this._beadIndexForNode(realTarget);
         if (selected >= 0) {
             this.collection.removeBead(selected);
             if (this.collection.beads.length === 0) this.collection.newBead();
-            if (realTarget.classList.contains('selected-bead')) this.collection.selectBead(0);
+            if (realTarget!.classList.contains('selected-bead')) this.collection.selectBead(0);
         }
         this.updateSelection();
     }
@@ -673,12 +704,12 @@ export class Visualization {
      * Name field input handler: updates the bead's name as the user types,
      * then refreshes every output that includes bead names (updateName)
      * and re-checks for new name collisions (checkDuplicateNames).
-     * @param {Event} event
+     * @param event
      */
-    onNameChange(event) {
-        const realTarget = findParentWithClass(event.target, "bead-view");
+    onNameChange(event: Event): void {
+        const realTarget = findParentWithClass(event.target as Element, "bead-view");
         const index = this._beadIndexForNode(realTarget);
-        if (index >= 0) this.collection.beads[index].name = event.target.value;
+        if (index >= 0) this.collection.beads[index].name = (event.target as HTMLInputElement).value;
         this.updateName(false); // a name can't affect bead position or R/S/T size class
         this.checkDuplicateNames();
     }
@@ -687,10 +718,9 @@ export class Visualization {
      * NGL selection-language string for highlighting a bead's atoms in the
      * viewer: "@i,j,k" (atom indices, NGL's by-index selection syntax) for
      * a bead with atoms, or "not all" (selects nothing) otherwise.
-     * @param {object} bead
-     * @returns {string}
+     * @param bead
      */
-	selectionString(bead) {
+    selectionString(bead: Bead | null): string {
         if (bead && bead.atoms.length > 0) {
             let sel = "@";
             for (let i = 0; i < bead.atoms.length; i++) {
@@ -709,13 +739,13 @@ export class Visualization {
      * Mapping panel stats, the chopped-heteroatom warning, and the CG
      * viewer. Called after essentially any bead edit (name/type/charge
      * change, atom add/remove, bead add/remove/select).
-     * @param {boolean} [rebuildSurface] - forwarded to drawCG; pass false
-     *   for edits (name, charge) that can't affect bead position or R/S/T
-     *   size class, so the CG surface mesh isn't needlessly torn down and
-     *   rebuilt. The export tabs/SASA/mapping stats above are unaffected
-     *   either way, since they're cheap and always reflect the latest values.
+     * @param rebuildSurface - forwarded to drawCG; pass false for edits
+     *   (name, charge) that can't affect bead position or R/S/T size class,
+     *   so the CG surface mesh isn't needlessly torn down and rebuilt. The
+     *   export tabs/SASA/mapping stats above are unaffected either way,
+     *   since they're cheap and always reflect the latest values.
      */
-    updateName(rebuildSurface = true) {
+    updateName(rebuildSurface = true): void {
         this.updateNDX();
         this.updateMap();
         this.updateGRO();
@@ -733,17 +763,17 @@ export class Visualization {
      * heteroatom (N/O/S/P) bond — capping that bond with hydrogen during
      * fragment construction can make a real ether/amine/thioether look
      * like a different, more terminal group than it actually is (see
-     * chemistry.js's cappedHeteroatoms). Purely structural, so this is
+     * chemistry.ts's cappedHeteroatoms). Purely structural, so this is
      * shown regardless of chemistry.available.
      */
-    updateCappedHeteroatomWarning() {
-        const el = document.getElementById('capped-heteroatom-warning');
+    updateCappedHeteroatomWarning(): void {
+        const el = byId('capped-heteroatom-warning');
         if (!el) return;
 
-        const names = [];
+        const names: string[] = [];
         for (const bead of this.collection.beads) {
             if (bead.atoms.length === 0) continue;
-            if (cappedHeteroatoms(bead.atoms).length > 0) names.push(bead.name);
+            if (cappedHeteroatoms(bead.atoms).length > 0) names.push(bead.name ?? "");
         }
 
         if (names.length === 0) {
@@ -770,13 +800,13 @@ export class Visualization {
      * atoms (rounded, minimum 1): within tolerance is "Acceptable", exact
      * is "OK", otherwise under/over-mapped depending on sign.
      */
-    updateMappingStats() {
-        const heavyEl    = document.getElementById('map-heavy');
-        const beadsEl    = document.getElementById('map-beads');
-        const mismatchEl = document.getElementById('map-mismatch');
+    updateMappingStats(): void {
+        const heavyEl    = byId('map-heavy');
+        const beadsEl    = byId('map-beads');
+        const mismatchEl = byId('map-mismatch');
         if (!heavyEl) return;
 
-        const reset = () => {
+        const reset = (): void => {
             [heavyEl, beadsEl, mismatchEl].forEach(el => { el.textContent = '—'; el.className = ''; });
         };
 
@@ -785,7 +815,7 @@ export class Visualization {
         const nHeavy = this.nHeavyAtoms;
         const beads  = this.collection.beads;
         const nBeads = beads.length;
-        heavyEl.textContent = nHeavy;
+        heavyEl.textContent = String(nHeavy);
 
         const allTyped = nBeads > 0 && beads.every(b => b.type && b.type !== 'TYPe');
 
@@ -805,7 +835,7 @@ export class Visualization {
             else if (t[0] === 'U') { counts.U++;                     }
             else                   { counts.R++; expectedHeavy += 4; }
         }
-        const parts = [];
+        const parts: string[] = [];
         if (counts.R) parts.push(`${counts.R}R`);
         if (counts.S) parts.push(`${counts.S}S`);
         if (counts.T) parts.push(`${counts.T}T`);
@@ -817,7 +847,7 @@ export class Visualization {
         const absDiff   = Math.abs(diff);
         const sign      = diff > 0 ? '+' : '';
 
-        let label, cls;
+        let label: string, cls: string;
         if      (absDiff === 0)        { label = 'OK';           cls = 'sasa-diff-good'; }
         else if (absDiff <= tolerance) { label = 'Acceptable';   cls = 'sasa-diff-warn'; }
         else if (diff > 0)             { label = 'Under-mapped'; cls = 'sasa-diff-bad';  }
@@ -833,9 +863,9 @@ export class Visualization {
      * rebuilds the entire bead-list DOM from scratch, and cascades into
      * updateName for every downstream output.
      */
-    updateSelection() {
-        let selString = this.selectionString(this.currentBead);
-        this.representation.setSelection(selString);
+    updateSelection(): void {
+        const selString = this.selectionString(this.currentBead);
+        this.representation?.setSelection(selString);
         this.clearBeadList();
         this.createBeadList();
         this.updateName();
@@ -848,23 +878,23 @@ export class Visualization {
      * collapsible atom list with a 🔗 indicator on any atom shared with
      * another bead. Applies the `selected-bead` highlight and scrolls it
      * into view if this is the current bead.
-     * @param {object} bead
-     * @param {boolean} [isDuplicate] - whether this bead's name collides
-     *   with another bead's (see createBeadList); shows the name field in
-     *   its error state if so
+     * @param bead
+     * @param isDuplicate - whether this bead's name collides with another
+     *   bead's (see createBeadList); shows the name field in its error
+     *   state if so
      */
-    createBeadListItem(bead, isDuplicate = false) {
-        let list = document.getElementById("bead-list");
-        let item = document.createElement("li");
+    createBeadListItem(bead: Bead, isDuplicate = false): void {
+        const list = byId("bead-list");
+        const item = document.createElement("li");
         item.classList.add("bead-view");
 
-        let headerRow = document.createElement("div");
+        const headerRow = document.createElement("div");
         headerRow.classList.add("bead-header");
 
-        let fieldsNode = document.createElement("div");
+        const fieldsNode = document.createElement("div");
         fieldsNode.classList.add("bead-fields");
 
-        const addLabeledField = (labelText, inputEl) => {
+        const addLabeledField = (labelText: string, inputEl: HTMLElement): void => {
             const wrap = document.createElement("div");
             wrap.classList.add("field");
             const lab = document.createElement("div");
@@ -876,9 +906,9 @@ export class Visualization {
         };
 
         // NAME
-        let nameNode = document.createElement("input");
+        const nameNode = document.createElement("input");
         nameNode.type = "text";
-        nameNode.value = bead.name;
+        nameNode.value = bead.name ?? "";
         nameNode.classList.add("bead-name");
         if (isDuplicate) nameNode.classList.add('input-error');
         nameNode.oninput = (event) => this.onNameChange(event);
@@ -886,25 +916,26 @@ export class Visualization {
         addLabeledField("Name", nameNode);
 
         // TYPE
-        let typeNode = document.createElement("input");
+        const typeNode = document.createElement("input");
         typeNode.type = "text";
         typeNode.value = bead.type;
         typeNode.classList.add("bead-type");
-        typeNode.oninput = (event) => { bead.type = event.target.value; this.updateName(); };
+        typeNode.oninput = (event) => { bead.type = (event.target as HTMLInputElement).value; this.updateName(); };
         typeNode.addEventListener("mousedown", e => e.stopPropagation());
 
         const typeWrap = document.createElement("div");
         typeWrap.classList.add("type-field-wrap");
         if (bead.suggestedType) {
+            const suggestedType = bead.suggestedType;
             const chip = document.createElement("button");
             chip.classList.add("bead-type-chip");
-            chip.textContent = `→ ${bead.suggestedType}`;
+            chip.textContent = `→ ${suggestedType}`;
             chip.title = "Click to apply suggested type";
             chip.addEventListener("mousedown", e => e.stopPropagation());
             chip.onclick = (e) => {
                 e.stopPropagation();
-                bead.type = bead.suggestedType;
-                typeNode.value = bead.suggestedType;
+                bead.type = suggestedType;
+                typeNode.value = suggestedType;
                 this.updateName();
             };
             typeWrap.appendChild(chip);
@@ -921,26 +952,27 @@ export class Visualization {
         fieldsNode.appendChild(typeFieldEl);
 
         // CHARGE
-        let chargeNode = document.createElement("input");
+        const chargeNode = document.createElement("input");
         chargeNode.type = "number";
         chargeNode.step = "0.01";
-        chargeNode.value = bead.charge;
+        chargeNode.value = String(bead.charge);
         chargeNode.classList.add("bead-charge");
-        chargeNode.oninput = (event) => { bead.charge = event.target.value; this.updateName(false); };
+        chargeNode.oninput = (event) => { bead.charge = (event.target as HTMLInputElement).value; this.updateName(false); };
         chargeNode.addEventListener("mousedown", e => e.stopPropagation());
 
         const chargeWrap = document.createElement("div");
         chargeWrap.classList.add("type-field-wrap");
         if (bead.suggestedCharge != null) {
+            const suggestedCharge = bead.suggestedCharge;
             const chargeChip = document.createElement("button");
             chargeChip.classList.add("bead-type-chip");
-            chargeChip.textContent = `→ ${bead.suggestedCharge}`;
+            chargeChip.textContent = `→ ${suggestedCharge}`;
             chargeChip.title = "Click to apply suggested charge";
             chargeChip.addEventListener("mousedown", e => e.stopPropagation());
             chargeChip.onclick = (e) => {
                 e.stopPropagation();
-                bead.charge = bead.suggestedCharge;
-                chargeNode.value = bead.suggestedCharge;
+                bead.charge = suggestedCharge;
+                chargeNode.value = String(suggestedCharge);
                 this.updateName(false);
             };
             chargeWrap.appendChild(chargeChip);
@@ -960,12 +992,12 @@ export class Visualization {
         const btnCol = document.createElement("div");
         btnCol.classList.add("bead-btn-col");
 
-        let removeNode = document.createElement("button");
+        const removeNode = document.createElement("button");
         removeNode.textContent = "Delete";
         removeNode.classList.add("delete-bead", "btn-danger");
         removeNode.onclick = (event) => { event.stopPropagation(); this.onBeadRemove(event); };
 
-        let predictNode = document.createElement("button");
+        const predictNode = document.createElement("button");
         predictNode.textContent = "Predict";
         predictNode.classList.add("predict-bead");
         predictNode.addEventListener("mousedown", e => e.stopPropagation());
@@ -990,16 +1022,16 @@ export class Visualization {
             atomSummary.addEventListener("click", e => e.stopPropagation());
             atomDetails.appendChild(atomSummary);
 
-            let nameList = document.createElement("ul");
+            const nameList = document.createElement("ul");
             for (let i = 0; i < bead.atoms.length; i++) {
                 const atom = bead.atoms[i];
                 const name = this.collection.atomName(atom);
                 const w = (bead.atomWeights && bead.atomWeights[atom.index])
                     ? bead.atomWeights[atom.index] : 1;
-                let subitem = document.createElement("li");
+                const subitem = document.createElement("li");
                 subitem.appendChild(document.createTextNode(w > 1 ? `${name} ×${w}` : name));
                 if (this.collection.countBeadsForAtom(atom) > 1) {
-                    let shareitem = document.createElement("abbr");
+                    const shareitem = document.createElement("abbr");
                     shareitem.title = "This atom is shared between multiple beads.";
                     shareitem.textContent = " 🔗";
                     subitem.appendChild(shareitem);
@@ -1025,12 +1057,14 @@ export class Visualization {
      * involved (not just the second-or-later occurrence) via
      * createBeadListItem's isDuplicate flag.
      */
-    createBeadList() {
-        const counts = new Map();
-        for (const bead of this.collection.beads)
-            counts.set(bead.name, (counts.get(bead.name) || 0) + 1);
+    createBeadList(): void {
+        const counts = new Map<string, number>();
+        for (const bead of this.collection.beads) {
+            const name = bead.name ?? "";
+            counts.set(name, (counts.get(name) || 0) + 1);
+        }
         const dupes = new Set([...counts.entries()].filter(([, n]) => n > 1).map(([k]) => k));
-        for (const bead of this.collection.beads) this.createBeadListItem(bead, dupes.has(bead.name));
+        for (const bead of this.collection.beads) this.createBeadListItem(bead, dupes.has(bead.name ?? ""));
     }
 
     /**
@@ -1039,34 +1073,36 @@ export class Visualization {
      * feedback while typing (called from onNameChange) without throwing
      * away and recreating every bead card on each keystroke.
      */
-    checkDuplicateNames() {
-        const counts = new Map();
-        for (const bead of this.collection.beads)
-            counts.set(bead.name, (counts.get(bead.name) || 0) + 1);
-        const items = document.getElementById('bead-list').childNodes;
+    checkDuplicateNames(): void {
+        const counts = new Map<string, number>();
+        for (const bead of this.collection.beads) {
+            const name = bead.name ?? "";
+            counts.set(name, (counts.get(name) || 0) + 1);
+        }
+        const items = byId('bead-list').childNodes;
         let i = 0;
         for (const item of items) {
             const bead = this.collection.beads[i++];
             if (!bead) break;
-            const nameInput = item.querySelector('.bead-name');
-            if (nameInput) nameInput.classList.toggle('input-error', (counts.get(bead.name) || 0) > 1);
+            const nameInput = (item as Element).querySelector<HTMLElement>('.bead-name');
+            if (nameInput) nameInput.classList.toggle('input-error', (counts.get(bead.name ?? "") || 0) > 1);
         }
     }
 
     /** Remove every bead card from the DOM (in preparation for createBeadList). */
-    clearBeadList() {
-        let list = document.getElementById('bead-list');
+    clearBeadList(): void {
+        const list = byId('bead-list');
         while (list.lastChild) list.removeChild(list.lastChild);
     }
 
     /** Refresh the .ndx output tab. */
-    updateNDX() { document.getElementById('ndx-output').textContent = generateNDX(this.collection); }
+    updateNDX(): void { byId('ndx-output').textContent = generateNDX(this.collection); }
     /** Refresh the .map output tab. */
-    updateMap() { document.getElementById('map-output').textContent = generateMap(this.collection); }
+    updateMap(): void { byId('map-output').textContent = generateMap(this.collection); }
     /** Refresh the .gro output tab. */
-    updateGRO() { document.getElementById('gro-output').textContent = generateGRO(this.collection); }
+    updateGRO(): void { byId('gro-output').textContent = generateGRO(this.collection); }
     /** Refresh the Bartender output tab. */
-    updateBartender() { document.getElementById('bartender-output').textContent = generateBartender(this.collection); }
+    updateBartender(): void { byId('bartender-output').textContent = generateBartender(this.collection); }
     /**
      * Refresh the Shaker output tab, including its own duplicate-bead-name
      * warning — generatePythonAssignments writes one dict-literal line per
@@ -1077,13 +1113,15 @@ export class Visualization {
      * it's flagged here as an error (not a cosmetic duplicate) since the
      * output is genuinely wrong, just not wrong yet at the point we show it.
      */
-    updatePY() {
-        const counts = new Map();
-        for (const bead of this.collection.beads)
-            counts.set(bead.name, (counts.get(bead.name) || 0) + 1);
+    updatePY(): void {
+        const counts = new Map<string, number>();
+        for (const bead of this.collection.beads) {
+            const name = bead.name ?? "";
+            counts.set(name, (counts.get(name) || 0) + 1);
+        }
         const hasDupes = [...counts.values()].some(n => n > 1);
-        document.getElementById('py-warning').hidden = !hasDupes;
-        document.getElementById('py-output').textContent = generatePythonAssignments(this.collection);
+        byId('py-warning').hidden = !hasDupes;
+        byId('py-output').textContent = generatePythonAssignments(this.collection);
     }
 
     /**
@@ -1092,10 +1130,10 @@ export class Visualization {
      * since the bead mapping changes constantly), and their percentage
      * difference, colour-coded good/warn/bad at ±5%/±10%.
      */
-    updateSASA() {
-        const aaEl   = document.getElementById('aa-sasa');
-        const cgEl   = document.getElementById('cg-sasa');
-        const diffEl = document.getElementById('sasa-diff');
+    updateSASA(): void {
+        const aaEl   = byId('aa-sasa');
+        const cgEl   = byId('cg-sasa');
+        const diffEl = byId('sasa-diff');
         if (!aaEl || !cgEl || !diffEl) return;
 
         const aaVal = this._aaSASAValue;
@@ -1127,16 +1165,17 @@ export class Visualization {
      * the structure is skipped with a console warning rather than failing
      * the whole import. No-ops if no molecule is loaded yet, or if the
      * text contains no recognizable bead definitions.
-     * @param {string} text - pasted Shaker `mapping = {...}` text
+     * @param text - pasted Shaker `mapping = {...}` text
      */
-    loadShakerMapping(text) {
-        if (!this.component) return;
+    loadShakerMapping(text: string): void {
+        const component = this.component;
+        if (!component) return;
         const beadDefs = parseShakerMapping(text);
         if (!beadDefs.length) { console.warn('No beads found in mapping file'); return; }
 
         // Collect name → index during iteration (avoids NGL proxy-reuse issues)
-        const nameToIndex = new Map();
-        this.component.structure.eachAtom(ap => {
+        const nameToIndex = new Map<string, number>();
+        component.structure.eachAtom(ap => {
             const name = this.collection.atomName(ap);
             if (!nameToIndex.has(name)) nameToIndex.set(name, ap.index);
         });
@@ -1151,7 +1190,7 @@ export class Visualization {
             for (const atomName of def.atoms) {
                 const idx = nameToIndex.get(atomName);
                 if (idx !== undefined) {
-                    bead.addAtom(this.component.structure.getAtomProxy(idx));
+                    bead.addAtom(component.structure.getAtomProxy(idx));
                 } else {
                     console.warn(`Mapping import: atom "${atomName}" not found in structure`);
                 }
@@ -1166,7 +1205,7 @@ export class Visualization {
      * Redraw the CG representation from scratch: a fresh NGL.Shape with
      * one sphere per non-empty bead (radius is fixed/cosmetic here, unlike
      * the real per-size-class radius used for SASA/the CG surface — see
-     * sasa.js), an optional name label per bead, and the selected bead
+     * sasa.ts), an optional name label per bead, and the selected bead
      * picked out in a fixed highlight colour rather than its own type
      * colour. The whole shape component is removed and recreated rather
      * than updated in place — simpler than diffing, and cheap enough at
@@ -1174,25 +1213,25 @@ export class Visualization {
      * just opacity (1 vs 0.4), not a different representation. Also
      * triggers a CG surface rebuild by default, since the surface depends
      * on the same bead positions.
-     * @param {boolean} [rebuildSurface] - pass false to skip the trailing
-     *   drawCGSurface call, for edits that can't affect bead position or
-     *   R/S/T size class (see updateName) — the surface mesh has no other
-     *   dependency, so rebuilding it would be wasted, async, main-thread work.
+     * @param rebuildSurface - pass false to skip the trailing drawCGSurface
+     *   call, for edits that can't affect bead position or R/S/T size class
+     *   (see updateName) — the surface mesh has no other dependency, so
+     *   rebuilding it would be wasted, async, main-thread work.
      */
-    drawCG(rebuildSurface = true) {
-        let selectedColor = [0.25, 0.84, 0.96];
-        let opacity = this.showCG ? 1 : 0.4;
+    drawCG(rebuildSurface = true): void {
+        const selectedColor: [number, number, number] = [0.25, 0.84, 0.96];
+        const opacity = this.showCG ? 1 : 0.4;
 
         if (this.shapeComp != null) this.stage.removeComponent(this.shapeComp);
 
-        let shape = new NGL.Shape("shape", {disablePicking: true});
-        for (let bead of this.collection.beads) {
+        const shape = new NGL.Shape("shape", {disablePicking: true});
+        for (const bead of this.collection.beads) {
             const color = bead === this.currentBead ? selectedColor : typeColor(bead.type);
             if (bead.atoms.length > 0) {
                 const center = bead.center;
-                shape.addSphere(center, color, 1.12, bead.name);
+                shape.addSphere(center, color, 1.12, bead.name ?? "");
                 if (this.showCGLabels) shape.addText(
-                    [center.x, center.y + 1.8, center.z], color, 2.5, bead.name
+                    [center.x, center.y + 1.8, center.z], color, 2.5, bead.name ?? ""
                 );
             }
         }

@@ -30,13 +30,19 @@
    Probe radius in Angstrom. 0.191 nm = 1.91 Å is the Martini tiny-bead radius,
    used here so the AA and CG surfaces are computed with the same probe and are
    directly comparable. */
+import type { Bead, BeadCollection } from './bead.js';
+import type { Structure } from './types.js';
+
+/** A particle for shrakeRupley: [x, y, z, vdwRadius] in Angstrom. */
+type Particle = [number, number, number, number];
+
 export const PROBE_RADIUS = 1.91;
 
 /* Martini bead vdW radii in Angstrom, keyed by size class. Values come from the
    standard Martini bead radii (nm -> A): regular 0.264, small 0.230, tiny 0.191.
    "U" beads are virtual/ghost beads and contribute no surface (radius 0).
    Edit this table to switch force fields. */
-export const BEAD_RADII = {
+export const BEAD_RADII: Record<string, number> = {
     R: 2.64,
     S: 2.30,
     T: 1.91,
@@ -48,10 +54,10 @@ const DEFAULT_BEAD_SIZE = "R";
  * The Martini size-class letter (R/S/T/U) implied by a bead type string,
  * read from its first character — e.g. "SP2a" -> "S", "TC5" -> "T", a plain
  * "P2" (no size prefix) -> the "R" (regular) default.
- * @param {string} type - bead type code, e.g. "SP2a"
- * @returns {string} one of "R", "S", "T", "U"
+ * @param type - bead type code, e.g. "SP2a"
+ * @returns one of "R", "S", "T", "U"
  */
-export function beadSizeClass(type) {
+export function beadSizeClass(type: string): string {
     if (!type) return DEFAULT_BEAD_SIZE;
     const first = type.trim().charAt(0).toUpperCase();
     if (first === "S" || first === "T" || first === "U") return first;
@@ -60,15 +66,15 @@ export function beadSizeClass(type) {
 
 /**
  * The Martini vdW radius (Å) for a bead, from its type's size class.
- * @param {object} bead - has a `type` string (e.g. "SP2a")
- * @returns {number} radius in Angstrom (0 for virtual "U" beads)
+ * @param bead - has a `type` string (e.g. "SP2a")
+ * @returns radius in Angstrom (0 for virtual "U" beads)
  */
-export function beadRadius(bead) {
+export function beadRadius(bead: Bead): number {
     return BEAD_RADII[beadSizeClass(bead.type)];
 }
 
 // Standard vdW radii (Angstrom) for elements found in organic molecules.
-const VDW_RADII = {
+const VDW_RADII: Record<string, number> = {
     H: 1.09, C: 1.75, N: 1.61, O: 1.56, F: 1.44,
     P: 1.80, S: 1.79, CL: 1.74, BR: 1.85, I: 2.00,
 };
@@ -79,11 +85,11 @@ const DEFAULT_VDW_RADIUS = 1.75;
  * the unit sphere, used by shrakeRupley as the fixed set of sample
  * directions tested around every atom. Deterministic (no RNG), so repeated
  * calls with the same n always sample the same directions.
- * @param {number} n - number of points to generate
- * @returns {Array<[number,number,number]>} unit-length [x,y,z] points
+ * @param n - number of points to generate
+ * @returns unit-length [x,y,z] points
  */
-function fibonacciSpherePoints(n) {
-    const pts = new Array(n);
+function fibonacciSpherePoints(n: number): [number, number, number][] {
+    const pts: [number, number, number][] = new Array(n);
     const phi = Math.PI * (3 - Math.sqrt(5));
     for (let i = 0; i < n; i++) {
         const y = 1 - (i / (n - 1)) * 2;
@@ -110,12 +116,12 @@ function fibonacciSpherePoints(n) {
  * before testing individual sample points against only that shortlist —
  * an O(n²) neighbour pass plus O(n_neighbours × nPoints) point tests per
  * particle, not a full O(n² × nPoints).
- * @param {Array<[number,number,number,number]>} particles - [x,y,z,vdwRadius] in Angstrom
- * @param {number} probeRadius - solvent probe radius in Angstrom
- * @param {number} [nPoints] - sample points per particle (more = smoother, slower)
- * @returns {number} total SASA in Å²
+ * @param particles - [x,y,z,vdwRadius] in Angstrom
+ * @param probeRadius - solvent probe radius in Angstrom
+ * @param nPoints - sample points per particle (more = smoother, slower)
+ * @returns total SASA in Å²
  */
-export function shrakeRupley(particles, probeRadius, nPoints = 4800) {
+export function shrakeRupley(particles: Particle[], probeRadius: number, nPoints = 4800): number {
     const n = particles.length;
     if (n === 0) return 0;
     const unitPts = fibonacciSpherePoints(nPoints);
@@ -129,7 +135,7 @@ export function shrakeRupley(particles, probeRadius, nPoints = 4800) {
         // sample point is being tested, so they're resolved once here rather
         // than re-derived from `particles[j]` on every one of the nPoints
         // iterations below.
-        const neighbors = [];
+        const neighbors: Particle[] = [];
         for (let j = 0; j < n; j++) {
             if (j === i) continue;
             const [xj, yj, zj, rj] = particles[j];
@@ -158,12 +164,11 @@ export function shrakeRupley(particles, probeRadius, nPoints = 4800) {
 /**
  * Whole-structure SASA (Å²) for the all-atom representation, using
  * vdW radii per element.
- * @param {object} structure - NGL-style structure (eachAtom)
- * @param {number} probeRadius - solvent probe radius in Angstrom
- * @returns {number}
+ * @param structure - NGL-style structure (eachAtom)
+ * @param probeRadius - solvent probe radius in Angstrom
  */
-export function aaSASA(structure, probeRadius) {
-    const particles = [];
+export function aaSASA(structure: Structure, probeRadius: number): number {
+    const particles: Particle[] = [];
     structure.eachAtom((atom) => {
         const el = (atom.element || "").toUpperCase();
         const r = VDW_RADII[el] ?? DEFAULT_VDW_RADIUS;
@@ -177,13 +182,12 @@ export function aaSASA(structure, probeRadius) {
  * each bead's own Martini size-class radius (see beadRadius) centred at its
  * geometric centre. Empty beads and zero-radius "U" (virtual) beads
  * contribute no surface and are skipped.
- * @param {object} collection - BeadCollection (has a `beads` array)
- * @param {number} probeRadius - solvent probe radius in Angstrom (same
- *   value as used for aaSASA, so the two totals are comparable)
- * @returns {number}
+ * @param collection - BeadCollection (has a `beads` array)
+ * @param probeRadius - solvent probe radius in Angstrom (same value as used
+ *   for aaSASA, so the two totals are comparable)
  */
-export function cgSASA(collection, probeRadius) {
-    const particles = [];
+export function cgSASA(collection: BeadCollection, probeRadius: number): number {
+    const particles: Particle[] = [];
     for (const bead of collection.beads) {
         if (bead.atoms.length === 0) continue;
         const r = beadRadius(bead);
@@ -196,10 +200,10 @@ export function cgSASA(collection, probeRadius) {
 
 /**
  * Pad an atom name into PDB columns 13-16.
- * @param {string} name
- * @returns {string} exactly 4 characters
+ * @param name
+ * @returns exactly 4 characters
  */
-function formatPDBAtomName(name) {
+function formatPDBAtomName(name: string): string {
     name = (name || "").substring(0, 4);
     if (name.length >= 4) return name;
     return (" " + name).padEnd(4);
@@ -219,16 +223,16 @@ function formatPDBAtomName(name) {
  * renderer at all: NGL's "surface" representation normally derives radius
  * from the atom's element, which would force every bead to the same size.
  * Passing `radiusType: "bfactor"` in the representation params (see
- * drawCGSurface in visualization.js, the only caller of this function)
+ * drawCGSurface in visualization.ts, the only caller of this function)
  * tells NGL to read each atom's per-bead radius straight back out of the
  * column this function just wrote it into, instead.
  *
  * Beads with no atoms or a zero radius (virtual "U" beads) are skipped.
- * @param {object} collection - BeadCollection (has a `beads` array)
- * @returns {string} PDB-format text (empty string if no beads qualify)
+ * @param collection - BeadCollection (has a `beads` array)
+ * @returns PDB-format text (empty string if no beads qualify)
  */
-export function beadsToPDB(collection) {
-    let lines = [];
+export function beadsToPDB(collection: BeadCollection): string {
+    const lines: string[] = [];
     let serial = 0;
     for (const bead of collection.beads) {
         if (bead.atoms.length === 0) continue;
@@ -237,7 +241,7 @@ export function beadsToPDB(collection) {
         serial += 1;
         const center = bead.center;
         const serStr = String(serial % 100000).padStart(5);
-        const name = formatPDBAtomName(bead.name);
+        const name = formatPDBAtomName(bead.name ?? "");
         const resname = (bead.resname || "BEA").substring(0, 3).padEnd(3);
         const resid = String(((bead.resid % 10000) + 10000) % 10000).padStart(4);
         const x = center.x.toFixed(3).padStart(8);

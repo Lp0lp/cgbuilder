@@ -2,18 +2,21 @@ import { describe, it, expect } from 'vitest';
 import {
     generateNDX, generateMap, generatePythonAssignments, generateGRO,
     generateBartender, parseShakerMapping,
-} from '../scripts/fileformats.js';
-import { EXAMPLE_MAPPING } from '../scripts/example.js';
+} from '../fileformats.js';
+import { EXAMPLE_MAPPING } from '../example.js';
+import type { BeadCollection } from '../bead.js';
 
-// Minimal bead/collection mocks -- just the shape each generator reads.
-function makeCollection(beads, atomNameMap = {}) {
+// Minimal bead/collection mocks -- just the shape each generator reads, cast
+// to the nominal BeadCollection at the boundary (the generators only touch a
+// handful of fields).
+function makeCollection(beads: unknown[], atomNameMap: Record<number, string> = {}): BeadCollection {
     return {
         beads,
-        atomName(atom) { return atomNameMap[atom.index] ?? `A${atom.index}`; },
-        expandedAtomNames(bead) {
+        atomName(atom: { index: number }) { return atomNameMap[atom.index] ?? `A${atom.index}`; },
+        expandedAtomNames(bead: { atoms: { index: number }[] }) {
             return bead.atoms.map((a) => atomNameMap[a.index] ?? `A${a.index}`);
         },
-    };
+    } as unknown as BeadCollection;
 }
 
 describe('generateNDX', () => {
@@ -77,9 +80,11 @@ describe('generateGRO', () => {
 
 describe('generateBartender', () => {
     it('writes BEADS header and one line per bead with 1-based atom indices', () => {
+        const b0 = [{ index: 0 }, { index: 1 }];
+        const b1 = [{ index: 2 }];
         const collection = makeCollection([
-            { name: 'B0', atoms: [{ index: 0 }, { index: 1 }], expandedAtoms() { return this.atoms; } },
-            { name: 'B1', atoms: [{ index: 2 }],               expandedAtoms() { return this.atoms; } },
+            { name: 'B0', atoms: b0, expandedAtoms: () => b0 },
+            { name: 'B1', atoms: b1, expandedAtoms: () => b1 },
         ]);
         expect(generateBartender(collection)).toBe('BEADS\n1 1,2\n2 3\n');
     });
@@ -94,7 +99,7 @@ describe('generateBartender', () => {
 });
 
 describe('parseShakerMapping', () => {
-    it('round-trips the real example mapping from example.js', () => {
+    it('round-trips the real example mapping from example.ts', () => {
         const beads = parseShakerMapping(EXAMPLE_MAPPING);
         expect(beads).toHaveLength(6);
 
@@ -103,7 +108,7 @@ describe('parseShakerMapping', () => {
             name: 'R11', type: 'SP2', charge: 0, atoms: ['C06', 'O08', 'N07', 'H13'],
         });
 
-        const wr10 = beads.find((b) => b.name === 'WR10');
+        const wr10 = beads.find((b) => b.name === 'WR10')!;
         expect(wr10.type).toBe('TN6a');
         expect(wr10.atoms).toEqual(['C0H', 'N0G', 'H0M']);
     });

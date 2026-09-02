@@ -1,14 +1,23 @@
-import { describe, it, expect } from 'vitest';
-import { typeColor, findParentWithClass } from '../scripts/visualization.js';
+import { describe, it, expect, vi } from 'vitest';
+
+// visualization.ts runtime-imports the NGL adapter (../ngl.js -> the `ngl`
+// package) and rdkit.ts (which imports the RDKit WASM asset) at module load.
+// Neither is needed to test the two pure functions below, and both are
+// browser/bundler-only, so stub them out. vitest hoists these above the
+// import below, so the real modules are never evaluated.
+vi.mock('../ngl.js', () => ({ NGL: {} }));
+vi.mock('../rdkit.js', () => ({ loadRDKit: () => Promise.reject(new Error('RDKit not needed in this test')) }));
+
+import { typeColor, findParentWithClass } from '../visualization.js';
 
 // Minimal duck-typed stand-in for a DOM Element, just enough surface for
 // findParentWithClass's classList.contains/parentElement walk -- this
-// project has no jsdom/happy-dom dependency, so a real Element isn't
-// available outside a browser (consistent with mockStructure.js's approach
-// for NGL elsewhere in this test suite).
-function fakeElement(classes, parent = null) {
+// project's tests run in vitest's node environment with no DOM, so a real
+// Element isn't available (consistent with mockStructure.ts's approach for
+// NGL elsewhere in this test suite).
+function fakeElement(classes: string[], parent: Element | null = null): Element {
     const set = new Set(classes);
-    return { classList: { contains: (c) => set.has(c) }, parentElement: parent };
+    return { classList: { contains: (c: string) => set.has(c) }, parentElement: parent } as unknown as Element;
 }
 
 describe('typeColor', () => {
@@ -34,7 +43,7 @@ describe('typeColor', () => {
     it('falls back to light grey for an unknown or placeholder type', () => {
         expect(typeColor('TYPe')).toEqual([0.75, 0.75, 0.75]);
         expect(typeColor('')).toEqual([0.75, 0.75, 0.75]);
-        expect(typeColor(undefined)).toEqual([0.75, 0.75, 0.75]);
+        expect(typeColor(undefined as unknown as string)).toEqual([0.75, 0.75, 0.75]);
     });
 });
 

@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { shrakeRupley, beadSizeClass, beadRadius, BEAD_RADII } from '../scripts/sasa.js';
+import { shrakeRupley, beadSizeClass, beadRadius, BEAD_RADII } from '../sasa.js';
+import type { Bead } from '../bead.js';
+
+// beadRadius only reads `.type`; stand in a minimal object for a real Bead.
+const bead = (type: string) => ({ type }) as unknown as Bead;
 
 describe('beadSizeClass', () => {
     it('reads the size letter from the bead type prefix', () => {
@@ -14,17 +18,17 @@ describe('beadSizeClass', () => {
     });
 
     it('defaults to regular (R) for empty/missing types', () => {
-        expect(beadSizeClass(null)).toBe('R');
+        expect(beadSizeClass(null as unknown as string)).toBe('R');
         expect(beadSizeClass('')).toBe('R');
     });
 });
 
 describe('beadRadius', () => {
     it('maps each size class to its Martini vdW radius', () => {
-        expect(beadRadius({ type: 'TC5' })).toBe(BEAD_RADII.T);
-        expect(beadRadius({ type: 'SP2' })).toBe(BEAD_RADII.S);
-        expect(beadRadius({ type: 'P2' })).toBe(BEAD_RADII.R);
-        expect(beadRadius({ type: 'UNK' })).toBe(0);
+        expect(beadRadius(bead('TC5'))).toBe(BEAD_RADII.T);
+        expect(beadRadius(bead('SP2'))).toBe(BEAD_RADII.S);
+        expect(beadRadius(bead('P2'))).toBe(BEAD_RADII.R);
+        expect(beadRadius(bead('UNK'))).toBe(0);
     });
 });
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { determineBeadType } from '../scripts/prediction.js';
+import { determineBeadType } from '../prediction.js';
 
 describe('determineBeadType', () => {
     it('picks the exact C-series match when deltaF lines up with a known value', () => {
@@ -129,7 +129,7 @@ describe('determineBeadType', () => {
 
     it('excludes TC5 (non-ring-only tiny carbon) when the fragment is not in a ring', () => {
         // TC5 is filtered out of the tiny candidate list unless inRing=true
-        // (see prediction.js comment on the non-bonding branch).
+        // (see prediction.ts comment on the non-bonding branch).
         const result = determineBeadType({
             deltaF: 4.5, charge: 0, hDonors: 0, hAcceptors: 0,
             hasHalogen: false, inRing: false, weightedHeavyCount: 2, ringOrBranched: false,

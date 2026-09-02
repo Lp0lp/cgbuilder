@@ -3,8 +3,8 @@
    ===========================================================================
    Maps one fragment's physicochemical properties to a specific Martini 3
    bead type code (e.g. "SP2a"), largely inspired by AutoMartini's own
-   determine_bead_type() logic (Szczuka et al. 2025, 
-   https://doi.org/10.1021/acs.jctc.5c01178; reference implementation 
+   determine_bead_type() logic (Szczuka et al. 2025,
+   https://doi.org/10.1021/acs.jctc.5c01178; reference implementation
    https://github.com/Martini-Force-Field-Initiative/Automartini_M3/tree/main ):
 
      1. A free energy of transfer (deltaF, kJ/mol) for the fragment is
@@ -32,7 +32,9 @@
    open-chain aromatic SMILES ("cc", "cn", "ncs") that RDKit cannot parse — these
    are matched directly against the aromatic-notation fragment key (see
    buildCanonTable / onPredictTypes). */
-const FRAG_DELTA_F = {
+import type { BeadTypeProps, RDKitModule } from './types.js';
+
+const FRAG_DELTA_F: Record<string, number> = {
     "CC":12.0, "CCC":14.2, "CCCC":18.9, "CC(C)(C)C":18.9,
     "C=C":6.4, "C=CC":8.4, "CC=C":8.4, "CCc":8.4,
     "cCC":8.4, "cc(c)C":13.4, "cc(c)-c":13.4, "CCCc":13.4,
@@ -142,7 +144,7 @@ const FRAG_DELTA_F = {
    add the label by hand. Chain-length variants are enumerated explicitly
    (not pattern-matched) since Martini beads only ever cover ~2-5 heavy
    atoms, a small, fully enumerable space. */
-const ION_DELTA_F = {
+const ION_DELTA_F: Record<string, number> = {
     "[NH4+]":-17.0,
     "C[NH3+]":-16.3, "CC[NH3+]":-18.2, "CCC[NH3+]":-18.8, "CCCC[NH3+]":-18.8,
     "C[NH2+]C":-18.0, "CC[NH2+]C":-17.4, "CCC[NH2+]C":-17.4,
@@ -168,7 +170,7 @@ const ION_DELTA_F = {
    Note: SQ4 and SQ5 share the exact same value (-18.2) — the only exact
    tie anywhere in this table; see determineBeadType's Q-series ordering
    comment for how that tie is resolved. */
-const DELTA_F = {
+const DELTA_F: Record<string, number> = {
     C1:18.9, C2:14.8, C3:13.8, C4:13.4, C5:11.2, C6:10.1,
     N1:8.1,  N2:5.6,  N3:1.8,  N4:2.2,  N5:0.0,  N6:-1.1,
     P1:-2.0, P2:-3.8, P3:-5.1, P4:-7.4, P5:-9.1, P6:-9.2,
@@ -207,13 +209,13 @@ const DELTA_F = {
  * Open-chain aromatic keys ("cc", "cn", ...) that RDKit can't parse at all
  * are kept verbatim, for direct string-matching against the aromatic-
  * notation fragment key instead (see fragmentToSmiles's aromaticNotation
- * option in chemistry.js). Called once per predict session, not per bead.
- * @param {object} RDKit - the loaded RDKit_minimal module (see rdkit.js)
- * @returns {Object<string,number>} canonical (or verbatim, for aromatic-
- *   notation keys) SMILES -> deltaF (kJ/mol)
+ * option in chemistry.ts). Called once per predict session, not per bead.
+ * @param RDKit - the loaded RDKit_minimal module (see rdkit.ts)
+ * @returns canonical (or verbatim, for aromatic-notation keys) SMILES ->
+ *   deltaF (kJ/mol)
  */
-export function buildCanonTable(RDKit) {
-    const result = {};
+export function buildCanonTable(RDKit: RDKitModule): Record<string, number> {
+    const result: Record<string, number> = {};
     for (const table of [FRAG_DELTA_F, ION_DELTA_F]) {
         for (const [smi, df] of Object.entries(table)) {
             try {
@@ -243,11 +245,11 @@ export function buildCanonTable(RDKit) {
  * (looked up in DELTA_F) is numerically closest to the fragment's deltaF.
  * On an exact tie, the FIRST candidate encountered wins — determineBeadType
  * relies on this for its Q5-before-Q4 ordering (see its own comment).
- * @param {number} deltaF - the fragment's free energy of transfer (kJ/mol)
- * @param {Array<string>} candidates - bead type codes to search, in order
- * @returns {string} the closest-matching candidate
+ * @param deltaF - the fragment's free energy of transfer (kJ/mol)
+ * @param candidates - bead type codes to search, in order
+ * @returns the closest-matching candidate
  */
-function _closestType(deltaF, candidates) {
+function _closestType(deltaF: number, candidates: string[]): string {
     let best = candidates[0];
     let bestErr = Infinity;
     for (const t of candidates) {
@@ -263,12 +265,11 @@ function _closestType(deltaF, candidates) {
  * bare code in `codes`, e.g. _series('S', ['N1','N2'], 'a') -> ['SN1a','SN2a'].
  * Lets determineBeadType's per-size-class candidate lists be written once
  * instead of by hand for every T/S/plain combination.
- * @param {string} prefix - size class, 'T'/'S'/''
- * @param {Array<string>} codes - bare bead-type codes, e.g. 'N1'
- * @param {string} [suffix] - H-bond label, 'a'/'d'/''
- * @returns {Array<string>}
+ * @param prefix - size class, 'T'/'S'/''
+ * @param codes - bare bead-type codes, e.g. 'N1'
+ * @param suffix - H-bond label, 'a'/'d'/''
  */
-function _series(prefix, codes, suffix = '') {
+function _series(prefix: string, codes: string[], suffix = ''): string[] {
     return codes.map((c) => `${prefix}${c}${suffix}`);
 }
 
@@ -284,35 +285,17 @@ const _X_CODES = ['X4','X3','X2','X1'];
  * (see the module-level comment for the full decision order), and returns
  * whichever candidate's own reference deltaF (in DELTA_F) is closest to
  * this fragment's.
- * @param {object} props
- * @param {number} props.deltaF - free energy of transfer (kJ/mol) for this
- *   fragment, from a table lookup or a Crippen-logP-derived estimate
- * @param {number} props.charge - formal charge; |charge|>=2 forces a
- *   D-bead, any other nonzero charge searches the Q1-Q5 ladder
- * @param {number} props.hDonors - count of H-bond donor atoms in the bead
- * @param {number} props.hAcceptors - count of H-bond acceptor atoms
- * @param {boolean} props.hasHalogen - any bead atom is F/Cl/Br/I; overrides
- *   every other branch below, matching AutoMartini
- * @param {boolean} props.inRing - any bead atom is aromatic (gates TC5
- *   eligibility only — TC5 is excluded from the tiny-C candidate list
- *   unless the fragment is actually in a ring)
- * @param {number} props.weightedHeavyCount - heavy-atom count, with
- *   period>=4 atoms (Br/Se/I, ...) counted as 2, per the Martini 3 SI's
- *   default bead-size convention
- * @param {boolean} props.ringOrBranched - bead contains a ring atom or a
- *   branch point (>=3 heavy neighbours) — downgrades a weighted count of 4
- *   from R (regular) to S (small), matching the SI's "R for linear 4-1, S
- *   for ring/branched" rule; weighted counts of 5/3/2 are unaffected
- * @returns {string} the predicted bead type code, e.g. "SP2a"
+ * @param props - see BeadTypeProps
+ * @returns the predicted bead type code, e.g. "SP2a"
  */
 export function determineBeadType({
     deltaF, charge, hDonors, hAcceptors, hasHalogen, inRing, weightedHeavyCount, ringOrBranched,
-}) {
+}: BeadTypeProps): string {
     let sz = weightedHeavyCount <= 2 ? 'T' : weightedHeavyCount === 3 ? 'S' : '';
     if (sz === '' && weightedHeavyCount === 4 && ringOrBranched) sz = 'S';
     const p = sz;
 
-    let result;
+    let result: string;
 
     if (Math.abs(charge) >= 2) {
         // Divalent+ ions (Mg2+, Ca2+, phosphate2-, ...) are D-beads by Martini

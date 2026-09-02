@@ -1,22 +1,27 @@
-import { describe, it, expect, beforeAll } from 'vitest';
-import { Bead, BeadCollection } from '../scripts/bead.js';
+import { describe, it, expect, vi } from 'vitest';
+import { Bead, BeadCollection } from '../bead.js';
 import { buildStructure } from './helpers/mockStructure.js';
+import type { AtomProxy, Structure } from '../types.js';
 
-// Bead.center calls `new NGL.Vector3(...)`, referencing NGL as a browser
-// global (loaded via <script> tag in index.html, not an ES import). Stand in
-// with just enough of the real Vector3 API for the weighted-average math.
-beforeAll(() => {
-    globalThis.NGL = {
+// Bead.center calls `new NGL.Vector3(...)` via the NGL adapter (../ngl.js),
+// which pulls the full `ngl` npm package — too heavy (and browser-only) to
+// load under vitest. Mock the adapter with just enough Vector3 for the
+// weighted-average math (vitest hoists this above the imports above, so
+// bead.js picks up the mock). Replaces the old `globalThis.NGL`
+// <script>-global stand-in from before the npm migration.
+vi.mock('../ngl.js', () => ({
+    NGL: {
         Vector3: class {
+            x: number; y: number; z: number;
             constructor(x = 0, y = 0, z = 0) { this.x = x; this.y = y; this.z = z; }
-            add(v) { this.x += v.x; this.y += v.y; this.z += v.z; return this; }
-            divideScalar(s) { this.x /= s; this.y /= s; this.z /= s; return this; }
+            add(v: { x: number; y: number; z: number }) { this.x += v.x; this.y += v.y; this.z += v.z; return this; }
+            divideScalar(s: number) { this.x /= s; this.y /= s; this.z /= s; return this; }
         },
-    };
-});
+    },
+}));
 
-function atom(index, x, y, z, atomname = `A${index}`) {
-    return { index, positionToVector3: () => ({ x, y, z }), atomname };
+function atom(index: number, x: number, y: number, z: number, atomname = `A${index}`): AtomProxy {
+    return { index, positionToVector3: () => ({ x, y, z }), atomname } as unknown as AtomProxy;
 }
 
 describe('Bead', () => {
@@ -164,7 +169,7 @@ describe('BeadCollection', () => {
             // mapping, where the exported name must match what re-importing
             // expects). The fix reads names straight from the file's raw
             // text (see parsePDBAtomNames/parseGROAtomNames in
-            // fileformats.js) and looks them up by index here instead of
+            // fileformats.ts) and looks them up by index here instead of
             // trusting NGL's own casing.
             const col = new BeadCollection();
             col.setOriginalAtomNames(['C1', 'CL9']); // as read verbatim from the PDB
@@ -211,7 +216,7 @@ describe('BeadCollection', () => {
         it('structureAtomNames returns an empty array for a structure with no eachAtom', () => {
             const col = new BeadCollection();
             expect(col.structureAtomNames(null)).toEqual([]);
-            expect(col.structureAtomNames({})).toEqual([]);
+            expect(col.structureAtomNames({} as unknown as Structure)).toEqual([]);
         });
     });
 });
