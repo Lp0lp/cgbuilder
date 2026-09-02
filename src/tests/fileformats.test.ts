@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     generateNDX, generateMap, generatePythonAssignments, generateGRO,
-    generateBartender, parseShakerMapping,
+    generateBartender, generatePyCGTOOL, parseShakerMapping,
 } from '../fileformats.js';
 import { EXAMPLE_MAPPING } from '../example.js';
 import type { BeadCollection } from '../bead.js';
@@ -13,8 +13,9 @@ function makeCollection(beads: unknown[], atomNameMap: Record<number, string> = 
     return {
         beads,
         atomName(atom: { index: number }) { return atomNameMap[atom.index] ?? `A${atom.index}`; },
-        expandedAtomNames(bead: { atoms: { index: number }[] }) {
-            return bead.atoms.map((a) => atomNameMap[a.index] ?? `A${a.index}`);
+        expandedAtomNames(bead: { atoms: { index: number }[]; expandedAtoms?: () => { index: number }[] }) {
+            const atoms = bead.expandedAtoms ? bead.expandedAtoms() : bead.atoms;
+            return atoms.map((a) => atomNameMap[a.index] ?? `A${a.index}`);
         },
     } as unknown as BeadCollection;
 }
@@ -95,6 +96,20 @@ describe('generateBartender', () => {
             { name: 'B0', atoms: [a], expandedAtoms() { return [a, a]; } },
         ]);
         expect(generateBartender(collection)).toBe('BEADS\n1 5,5\n');
+    });
+});
+
+describe('generatePyCGTOOL', () => {
+    it('writes a comment header, section name, and one line per bead', () => {
+        const collection = makeCollection(
+            [{ name: 'R1', type: 'TC4', charge: 0, resname: 'NAPH',
+               atoms: [{ index: 0 }, { index: 1 }],
+               expandedAtoms: () => [{ index: 0 }, { index: 1 }] }],
+            { 0: 'C8', 1: 'H8' },
+        );
+        const out = generatePyCGTOOL(collection);
+        expect(out).toContain('[ NAPH ]');
+        expect(out).toMatch(/R1\s+TC4\s+0\s+C8 H8/);
     });
 });
 

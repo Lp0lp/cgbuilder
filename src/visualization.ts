@@ -5,7 +5,7 @@ import {
 } from './chemistry.js';
 import { PROBE_RADIUS, aaSASA, cgSASA, beadsToPDB } from './sasa.js';
 import { generateNDX, generateMap, generateGRO, generatePythonAssignments,
-         generateBartender, download, copyTextToClipboard,
+         generateBartender, generatePyCGTOOL, download, copyTextToClipboard,
          bondAwareRepresentationParams, parseShakerMapping } from './fileformats.js';
 import { loadRDKit } from './rdkit.js';
 import { byId } from './dom.js';
@@ -190,12 +190,15 @@ export class Visualization {
             download('cgbuilder_assignments.py', generatePythonAssignments(this.collection));
         byId<HTMLButtonElement>('dl-bartender').onclick = () =>
             download('cgbuilder.bartender', generateBartender(this.collection));
+        byId<HTMLButtonElement>('dl-pycgtool').onclick = () =>
+            download('cgbuilder.map', generatePyCGTOOL(this.collection));
 
         byId<HTMLButtonElement>('dl-smiles').onclick = () =>
             download('cgbuilder.smi', byId('smiles-output').textContent || "");
 
         wireCopyButton('copy-py', 'py-output');
         wireCopyButton('copy-bartender', 'bartender-output');
+        wireCopyButton('copy-pycgtool', 'pycgtool-output');
         wireCopyButton('copy-gro', 'gro-output');
         wireCopyButton('copy-ndx', 'ndx-output');
         wireCopyButton('copy-map', 'map-output');
@@ -751,6 +754,7 @@ export class Visualization {
         this.updateGRO();
         this.updatePY();
         this.updateBartender();
+        this.updatePyCGTOOL();
         this.updateSASA();
         this.updateMappingStats();
         this.updateCappedHeteroatomWarning();
@@ -1103,6 +1107,8 @@ export class Visualization {
     updateGRO(): void { byId('gro-output').textContent = generateGRO(this.collection); }
     /** Refresh the Bartender output tab. */
     updateBartender(): void { byId('bartender-output').textContent = generateBartender(this.collection); }
+    /** Refresh the PyCGTOOL output tab. */
+    updatePyCGTOOL(): void { byId('pycgtool-output').textContent = generatePyCGTOOL(this.collection); }
     /**
      * Refresh the Shaker output tab, including its own duplicate-bead-name
      * warning — generatePythonAssignments writes one dict-literal line per

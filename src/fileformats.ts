@@ -124,6 +124,38 @@ export function generatePythonAssignments(collection: BeadCollection): string {
 }
 
 /**
+ * PyCGTOOL mapping text: a `[ resname ]` section header followed by one line
+ * per bead: `<name> <type> <charge> <atom1> <atom2> ...`. Charge is written as
+ * an integer (PyCGTOOL convention). Atoms weighted ×N appear N times —
+ * PyCGTOOL's geometric weighting sums duplicate entries, giving them
+ * proportionally more influence on the bead centre.
+ * @param collection - BeadCollection
+ */
+export function generatePyCGTOOL(collection: BeadCollection): string {
+    const beads = collection.beads;
+    if (beads.length === 0) return '';
+
+    let resname = 'UNK';
+    for (const bead of beads) {
+        if (bead.atoms && bead.atoms.length > 0) { resname = bead.resname; break; }
+    }
+
+    const nameW  = Math.max(...beads.map((b) => b.name.length));
+    const typeW  = Math.max(...beads.map((b) => (b.type || 'C1').length));
+    const chargeW = Math.max(...beads.map((b) => String(Math.round(b.charge ?? 0)).length));
+
+    const lines = [`; CGBuilder export`, `[ ${resname} ]`];
+    for (const bead of beads) {
+        const atoms  = collection.expandedAtomNames(bead).join(' ');
+        const charge = Math.round(bead.charge ?? 0);
+        lines.push(
+            `${bead.name.padEnd(nameW)}  ${(bead.type || 'C1').padEnd(typeW)}  ${String(charge).padStart(chargeW)}  ${atoms}`
+        );
+    }
+    return lines.join('\n') + '\n';
+}
+
+/**
  * Bartender mapping text: one line per bead, `<beadNumber> <idx1>,<idx2>,...`.
  * Bead numbers are 1-based. Atom indices are 1-based (GROMACS convention).
  * Atoms weighted ×N appear N times, matching the Shaker convention.
