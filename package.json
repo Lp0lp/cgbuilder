@@ -2,7 +2,6 @@
   "name": "cgbuilder",
   "version": "1.0.0",
   "description": "CGBuilder — Visual tool to build CG molecule models",
-  "main": "index.js",
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",
