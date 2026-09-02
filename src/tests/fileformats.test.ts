@@ -12,6 +12,7 @@ import type { BeadCollection } from '../bead.js';
 function makeCollection(beads: unknown[], atomNameMap: Record<number, string> = {}): BeadCollection {
     return {
         beads,
+        get assignedBeads() { return (beads as { atoms: unknown[] }[]).filter((b) => b.atoms.length > 0); },
         atomName(atom: { index: number }) { return atomNameMap[atom.index] ?? `A${atom.index}`; },
         expandedAtomNames(bead: { atoms: { index: number }[]; expandedAtoms?: () => { index: number }[] }) {
             const atoms = bead.expandedAtoms ? bead.expandedAtoms() : bead.atoms;
@@ -66,7 +67,7 @@ describe('generatePythonAssignments', () => {
 describe('generateGRO', () => {
     it('converts bead centres from Angstrom to nm and pads fixed-width columns', () => {
         const collection = makeCollection([
-            { name: 'BB', resname: 'UNK', resid: 1, center: { x: 10, y: 20, z: 30 } },
+            { name: 'BB', resname: 'UNK', resid: 1, center: { x: 10, y: 20, z: 30 }, atoms: [{}] },
         ]);
         const gro = generateGRO(collection);
         const lines = gro.split('\n');

@@ -26,7 +26,7 @@ import type { AtomProxy, BeadDef, RepresentationParams } from './types.js';
  */
 export function generateNDX(collection: BeadCollection): string {
     let ndx = "";
-    for (const bead of collection.beads) {
+    for (const bead of collection.assignedBeads) {
         ndx += "[ " + bead.name + " ]\n";
         for (const atom of bead.atoms) {
             ndx += (atom.index + 1) + " ";
@@ -53,7 +53,7 @@ export function generateMap(collection: BeadCollection): string {
     const atoms: AtomProxy[] = [];
     let atomname: string;
     let index: number;
-    for (const bead of collection.beads) {
+    for (const bead of collection.assignedBeads) {
         output += bead.name + " ";
         for (const atom of bead.atoms) {
             atomname = collection.atomName(atom);
@@ -93,7 +93,7 @@ export function generateMap(collection: BeadCollection): string {
  * @returns empty string if the collection has no beads
  */
 export function generatePythonAssignments(collection: BeadCollection): string {
-    const beads = collection.beads || [];
+    const beads = collection.assignedBeads || [];
     if (beads.length === 0) return "";
 
     let resname = "UNK";
@@ -132,7 +132,7 @@ export function generatePythonAssignments(collection: BeadCollection): string {
  * @param collection - BeadCollection
  */
 export function generatePyCGTOOL(collection: BeadCollection): string {
-    const beads = collection.beads;
+    const beads = collection.assignedBeads;
     if (beads.length === 0) return '';
 
     let resname = 'UNK';
@@ -140,7 +140,7 @@ export function generatePyCGTOOL(collection: BeadCollection): string {
         if (bead.atoms && bead.atoms.length > 0) { resname = bead.resname; break; }
     }
 
-    const nameW  = Math.max(...beads.map((b) => b.name.length));
+    const nameW  = Math.max(...beads.map((b) => (b.name ?? '').length));
     const typeW  = Math.max(...beads.map((b) => (b.type || 'C1').length));
     const chargeW = Math.max(...beads.map((b) => String(Math.round(b.charge ?? 0)).length));
 
@@ -148,8 +148,9 @@ export function generatePyCGTOOL(collection: BeadCollection): string {
     for (const bead of beads) {
         const atoms  = collection.expandedAtomNames(bead).join(' ');
         const charge = Math.round(bead.charge ?? 0);
+        const name   = bead.name ?? '';
         lines.push(
-            `${bead.name.padEnd(nameW)}  ${(bead.type || 'C1').padEnd(typeW)}  ${String(charge).padStart(chargeW)}  ${atoms}`
+            `${name.padEnd(nameW)}  ${(bead.type || 'C1').padEnd(typeW)}  ${String(charge).padStart(chargeW)}  ${atoms}`
         );
     }
     return lines.join('\n') + '\n';
@@ -163,7 +164,7 @@ export function generatePyCGTOOL(collection: BeadCollection): string {
  */
 export function generateBartender(collection: BeadCollection): string {
     const lines = ['BEADS'];
-    collection.beads.forEach((bead, i) => {
+    collection.assignedBeads.forEach((bead, i) => {
         const indices = bead.expandedAtoms().map((a) => a.index + 1);
         lines.push(`${i + 1} ${indices.join(',')}`);
     });
@@ -184,9 +185,9 @@ export function generateBartender(collection: BeadCollection): string {
  * @param collection - BeadCollection
  */
 export function generateGRO(collection: BeadCollection): string {
-    let output = "Generated with cgbuilder\n" + collection.beads.length + "\n";
+    let output = "Generated with cgbuilder\n" + collection.assignedBeads.length + "\n";
     let counter = 0;
-    for (const bead of collection.beads) {
+    for (const bead of collection.assignedBeads) {
         counter += 1;
         const resid    = String(bead.resid).padStart(5);
         const atomid   = String(counter).padStart(5);

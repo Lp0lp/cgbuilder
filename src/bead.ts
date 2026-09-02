@@ -223,6 +223,9 @@ export class BeadCollection {
     /** Every bead in this collection, in creation/display order. */
     get beads(): Bead[]            { return this._beads; }
 
+    /** Beads that have at least one atom assigned — the only ones meaningful to export. */
+    get assignedBeads(): Bead[]    { return this._beads.filter((b) => b.atoms.length > 0); }
+
     /** Select the bead at `index` as the current bead for editing. */
     selectBead(index: number): void {
         this._current = this._beads[index];
