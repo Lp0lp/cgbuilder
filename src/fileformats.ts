@@ -26,7 +26,7 @@ import type { AtomProxy, BeadDef, RepresentationParams } from './types.js';
  */
 export function generateNDX(collection: BeadCollection): string {
     let ndx = "";
-    for (const bead of collection.beads) {
+    for (const bead of collection.assignedBeads) {
         ndx += "[ " + bead.name + " ]\n";
         for (const atom of bead.atoms) {
             ndx += (atom.index + 1) + " ";
@@ -51,12 +51,10 @@ export function generateMap(collection: BeadCollection): string {
     let output = "[ to ]\nmartini\n\n[ martini ]\n";
     const atomToBeads: Record<string, string[]> = {};
     const atoms: AtomProxy[] = [];
-    let atomname: string;
-    let index: number;
-    for (const bead of collection.beads) {
+    for (const bead of collection.assignedBeads) {
         output += bead.name + " ";
         for (const atom of bead.atoms) {
-            atomname = collection.atomName(atom);
+            const atomname = collection.atomName(atom);
             if (atomToBeads[atomname] === undefined) {
                 atomToBeads[atomname] = [];
                 atoms.push(atom);
@@ -67,12 +65,10 @@ export function generateMap(collection: BeadCollection): string {
     output += "\n\n";
 
     output += "[ atoms ]\n";
-    index = 0;
-    atoms.sort(function(a, b) {return a.index - b.index});
-    for (const atom of atoms) {
-        index += 1;
-        atomname = collection.atomName(atom);
-        output += index + "\t" + atomname;
+    atoms.sort((a, b) => a.index - b.index);
+    for (let index = 0; index < atoms.length; index++) {
+        const atomname = collection.atomName(atoms[index]);
+        output += (index + 1) + "\t" + atomname;
         for (const bead of atomToBeads[atomname]) {
             output += "\t" + bead;
         }
@@ -93,7 +89,7 @@ export function generateMap(collection: BeadCollection): string {
  * @returns empty string if the collection has no beads
  */
 export function generatePythonAssignments(collection: BeadCollection): string {
-    const beads = collection.beads || [];
+    const beads = collection.assignedBeads || [];
     if (beads.length === 0) return "";
 
     let resname = "UNK";
@@ -124,6 +120,39 @@ export function generatePythonAssignments(collection: BeadCollection): string {
 }
 
 /**
+ * PyCGTOOL mapping text: a `[ resname ]` section header followed by one line
+ * per bead: `<name> <type> <charge> <atom1> <atom2> ...`. Charge is written as
+ * an integer (PyCGTOOL convention). Atoms weighted ×N appear N times —
+ * PyCGTOOL's geometric weighting sums duplicate entries, giving them
+ * proportionally more influence on the bead centre.
+ * @param collection - BeadCollection
+ */
+export function generatePyCGTOOL(collection: BeadCollection): string {
+    const beads = collection.assignedBeads;
+    if (beads.length === 0) return '';
+
+    let resname = 'UNK';
+    for (const bead of beads) {
+        if (bead.atoms && bead.atoms.length > 0) { resname = bead.resname; break; }
+    }
+
+    const nameW  = Math.max(...beads.map((b) => (b.name ?? '').length));
+    const typeW  = Math.max(...beads.map((b) => (b.type || 'C1').length));
+    const chargeW = Math.max(...beads.map((b) => String(Math.round(b.charge ?? 0)).length));
+
+    const lines = [`; CGBuilder export`, `[ ${resname} ]`];
+    for (const bead of beads) {
+        const atoms  = collection.expandedAtomNames(bead).join(' ');
+        const charge = Math.round(bead.charge ?? 0);
+        const name   = bead.name ?? '';
+        lines.push(
+            `${name.padEnd(nameW)}  ${(bead.type || 'C1').padEnd(typeW)}  ${String(charge).padStart(chargeW)}  ${atoms}`
+        );
+    }
+    return lines.join('\n') + '\n';
+}
+
+/**
  * Bartender mapping text: one line per bead, `<beadNumber> <idx1>,<idx2>,...`.
  * Bead numbers are 1-based. Atom indices are 1-based (GROMACS convention).
  * Atoms weighted ×N appear N times, matching the Shaker convention.
@@ -131,7 +160,7 @@ export function generatePythonAssignments(collection: BeadCollection): string {
  */
 export function generateBartender(collection: BeadCollection): string {
     const lines = ['BEADS'];
-    collection.beads.forEach((bead, i) => {
+    collection.assignedBeads.forEach((bead, i) => {
         const indices = bead.expandedAtoms().map((a) => a.index + 1);
         lines.push(`${i + 1} ${indices.join(',')}`);
     });
@@ -152,9 +181,9 @@ export function generateBartender(collection: BeadCollection): string {
  * @param collection - BeadCollection
  */
 export function generateGRO(collection: BeadCollection): string {
-    let output = "Generated with cgbuilder\n" + collection.beads.length + "\n";
+    let output = "Generated with cgbuilder\n" + collection.assignedBeads.length + "\n";
     let counter = 0;
-    for (const bead of collection.beads) {
+    for (const bead of collection.assignedBeads) {
         counter += 1;
         const resid    = String(bead.resid).padStart(5);
         const atomid   = String(counter).padStart(5);

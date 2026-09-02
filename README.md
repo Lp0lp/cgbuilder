@@ -58,6 +58,7 @@ Serve `dist/` with any static file server.
 | `.map` | Martini backward/martinize mapping — `[ to ]`/`[ martini ]`/`[ atoms ]` sections |
 | Shaker dict | [Shaker](https://github.com/Lp0lp/shaker)-format Python assignment dict — bead names, types, charges, atom lists |
 | Bartender mapping | `BEADS` section + one line per bead with 1-based atom indices (repeated by weight) |
+| PyCGTOOL mapping | [PyCGTOOL](https://github.com/jag1g13/pycgtool) `.map` — `[ resname ]` section + one line per bead (`name type charge atoms…`) |
 | AA SMILES | SMILES string for each bead's fragment (requires explicit H) |
 
 ---
