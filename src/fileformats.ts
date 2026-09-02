@@ -51,12 +51,10 @@ export function generateMap(collection: BeadCollection): string {
     let output = "[ to ]\nmartini\n\n[ martini ]\n";
     const atomToBeads: Record<string, string[]> = {};
     const atoms: AtomProxy[] = [];
-    let atomname: string;
-    let index: number;
     for (const bead of collection.assignedBeads) {
         output += bead.name + " ";
         for (const atom of bead.atoms) {
-            atomname = collection.atomName(atom);
+            const atomname = collection.atomName(atom);
             if (atomToBeads[atomname] === undefined) {
                 atomToBeads[atomname] = [];
                 atoms.push(atom);
@@ -67,12 +65,10 @@ export function generateMap(collection: BeadCollection): string {
     output += "\n\n";
 
     output += "[ atoms ]\n";
-    index = 0;
-    atoms.sort(function(a, b) {return a.index - b.index});
-    for (const atom of atoms) {
-        index += 1;
-        atomname = collection.atomName(atom);
-        output += index + "\t" + atomname;
+    atoms.sort((a, b) => a.index - b.index);
+    for (let index = 0; index < atoms.length; index++) {
+        const atomname = collection.atomName(atoms[index]);
+        output += (index + 1) + "\t" + atomname;
         for (const bead of atomToBeads[atomname]) {
             output += "\t" + bead;
         }

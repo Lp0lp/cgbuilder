@@ -99,6 +99,17 @@ function wireCopyButton(buttonId: string, outputId: string): void {
  * and the cached chemistry/SASA state for the currently loaded structure.
  * One instance is created per loaded molecule (see main.ts).
  */
+
+/** Data-driven table for the simple output tabs (generator → DOM → download).
+ *  Adding a new format = one row here; no other code needs to change. */
+const OUTPUT_TABS = [
+    { outputId: 'ndx-output',       dlId: 'dl-ndx',       copyId: 'copy-ndx',       filename: 'cgbuilder.ndx',           generate: generateNDX },
+    { outputId: 'map-output',       dlId: 'dl-map',       copyId: 'copy-map',       filename: 'cgbuilder.map',           generate: generateMap },
+    { outputId: 'gro-output',       dlId: 'dl-gro',       copyId: 'copy-gro',       filename: 'cgbuilder.gro',           generate: generateGRO },
+    { outputId: 'bartender-output', dlId: 'dl-bartender', copyId: 'copy-bartender', filename: 'cgbuilder.bartender',     generate: generateBartender },
+    { outputId: 'pycgtool-output',  dlId: 'dl-pycgtool',  copyId: 'copy-pycgtool',  filename: 'cgbuilder_pycgtool.map',  generate: generatePyCGTOOL },
+] as const;
+
 export class Visualization {
     collection: BeadCollection;
     representation: NglRepresentation | null;
@@ -180,28 +191,16 @@ export class Visualization {
             predictBtn.disabled = false;
         }
 
-        byId<HTMLButtonElement>('dl-ndx').onclick = () =>
-            download('cgbuilder.ndx', generateNDX(this.collection));
-        byId<HTMLButtonElement>('dl-map').onclick = () =>
-            download('cgbuilder.map', generateMap(this.collection));
-        byId<HTMLButtonElement>('dl-gro').onclick = () =>
-            download('cgbuilder.gro', generateGRO(this.collection));
+        for (const tab of OUTPUT_TABS) {
+            const { dlId, copyId, outputId, filename, generate } = tab;
+            byId<HTMLButtonElement>(dlId).onclick = () => download(filename, generate(this.collection));
+            wireCopyButton(copyId, outputId);
+        }
         byId<HTMLButtonElement>('dl-py').onclick = () =>
             download('cgbuilder_assignments.py', generatePythonAssignments(this.collection));
-        byId<HTMLButtonElement>('dl-bartender').onclick = () =>
-            download('cgbuilder.bartender', generateBartender(this.collection));
-        byId<HTMLButtonElement>('dl-pycgtool').onclick = () =>
-            download('cgbuilder.map', generatePyCGTOOL(this.collection));
-
         byId<HTMLButtonElement>('dl-smiles').onclick = () =>
             download('cgbuilder.smi', byId('smiles-output').textContent || "");
-
         wireCopyButton('copy-py', 'py-output');
-        wireCopyButton('copy-bartender', 'bartender-output');
-        wireCopyButton('copy-pycgtool', 'pycgtool-output');
-        wireCopyButton('copy-gro', 'gro-output');
-        wireCopyButton('copy-ndx', 'ndx-output');
-        wireCopyButton('copy-map', 'map-output');
         wireCopyButton('copy-smiles', 'smiles-output');
     }
 
@@ -749,12 +748,8 @@ export class Visualization {
      *   since they're cheap and always reflect the latest values.
      */
     updateName(rebuildSurface = true): void {
-        this.updateNDX();
-        this.updateMap();
-        this.updateGRO();
+        this.updateOutputTabs();
         this.updatePY();
-        this.updateBartender();
-        this.updatePyCGTOOL();
         this.updateSASA();
         this.updateMappingStats();
         this.updateCappedHeteroatomWarning();
@@ -1099,16 +1094,11 @@ export class Visualization {
         while (list.lastChild) list.removeChild(list.lastChild);
     }
 
-    /** Refresh the .ndx output tab. */
-    updateNDX(): void { byId('ndx-output').textContent = generateNDX(this.collection); }
-    /** Refresh the .map output tab. */
-    updateMap(): void { byId('map-output').textContent = generateMap(this.collection); }
-    /** Refresh the .gro output tab. */
-    updateGRO(): void { byId('gro-output').textContent = generateGRO(this.collection); }
-    /** Refresh the Bartender output tab. */
-    updateBartender(): void { byId('bartender-output').textContent = generateBartender(this.collection); }
-    /** Refresh the PyCGTOOL output tab. */
-    updatePyCGTOOL(): void { byId('pycgtool-output').textContent = generatePyCGTOOL(this.collection); }
+    updateOutputTabs(): void {
+        for (const tab of OUTPUT_TABS) {
+            byId(tab.outputId).textContent = tab.generate(this.collection);
+        }
+    }
     /**
      * Refresh the Shaker output tab, including its own duplicate-bead-name
      * warning — generatePythonAssignments writes one dict-literal line per
