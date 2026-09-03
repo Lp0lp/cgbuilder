@@ -411,7 +411,7 @@ export function perceiveChemistry(structure: Structure | null | undefined): Chem
 }
 
 /** Options for fragmentToSmiles. */
-interface FragmentToSmilesOptions {
+export interface FragmentToSmilesOptions {
     aromaticNotation?: boolean;
     startIndex?: number | null;
 }

@@ -8,7 +8,8 @@
     "build": "npm run typecheck && node build.mjs",
     "dev": "node build.mjs --watch",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "docs": "typedoc"
   },
   "repository": {
     "type": "git",
@@ -23,7 +24,8 @@
   "homepage": "https://github.com/Lp0lp/cgbuilder#readme",
   "devDependencies": {
     "esbuild": "^0.28.1",
-    "typescript": "^7.0.2",
+    "typedoc": "^0.28.20",
+    "typescript": "^6.0.3",
     "vitest": "^4.1.9"
   },
   "dependencies": {

@@ -34,7 +34,7 @@ import type { Bead, BeadCollection } from './bead.js';
 import type { Structure } from './types.js';
 
 /** A particle for shrakeRupley: [x, y, z, vdwRadius] in Angstrom. */
-type Particle = [number, number, number, number];
+export type Particle = [number, number, number, number];
 
 export const PROBE_RADIUS = 1.91;
 
