@@ -54,7 +54,7 @@ export function typeColor(beadType: string): [number, number, number] {
  * Walk up from `element` to find the nearest ancestor (or itself) with
  * `className`, since DOM event targets are often a child of the element
  * the handler actually cares about (e.g. a click on a bead card's input
- * should still resolve to the `.bead-view` <li> for that bead).
+ * should still resolve to the `.bead-view` `<li>` for that bead).
  * @param element
  * @param className
  */
