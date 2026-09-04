@@ -41,7 +41,7 @@ let currentVizu: Visualization | null = null;
  *   callers that need to act afterward (e.g. applying a mapping right after
  *   loading the bundled example) chain onto this
  */
-function loadMoleculeFromFile(file: File, stage: Stage): Promise<void> {
+export function loadMoleculeFromFile(file: File, stage: Stage): Promise<void> {
     stage.removeAllComponents();
     stage.signals.clicked.removeAll();
 
@@ -84,17 +84,17 @@ function loadMoleculeFromFile(file: File, stage: Stage): Promise<void> {
 }
 
 /**
- * The "Choose File" <input type="file">'s change handler.
+ * The "Choose File" `<input type="file">` change handler.
  * @param event
  * @param stage - NGL Stage
  */
-function loadMolecule(event: Event, stage: Stage): void {
+export function loadMolecule(event: Event, stage: Stage): void {
     const files = (event.target as HTMLInputElement).files;
     if (files && files[0]) loadMoleculeFromFile(files[0], stage);
 }
 
 /** Wire up the output-tab bar (Shaker/.gro/.ndx/.map/AA SMILES) switching. */
-function initTabs(): void {
+export function initTabs(): void {
     const btns = document.querySelectorAll<HTMLElement>('.tab-btn');
     const panels = document.querySelectorAll<HTMLElement>('.tab-panel');
     btns.forEach(btn => {
@@ -111,11 +111,11 @@ function initTabs(): void {
  * Wire up the dark/light theme toggle and keep the NGL stage's background
  * colour in sync with it (and vice versa, via the separate "Light BG"
  * checkbox — the two are independent: page theme is persisted to
- * localStorage and restored on load via the inline <head> script; the
+ * localStorage and restored on load via the inline `<head>` script; the
  * viewer background is a per-session NGL parameter, not persisted).
  * @param stage - NGL Stage
  */
-function initTheme(stage: Stage): void {
+export function initTheme(stage: Stage): void {
     const themeBtn = byId('theme-toggle');
     const bgToggle = byId<HTMLInputElement>('toggle-bg');
 
@@ -126,7 +126,7 @@ function initTheme(stage: Stage): void {
         stage.setParameters({ backgroundColor: isDark ? 'black' : 'white' });
     }
 
-    // Initialise BG to match the starting theme (set by the inline <head> script)
+    // Initialise BG to match the starting theme (set by the inline `<head>` script)
     syncBg(document.documentElement.getAttribute('data-theme') === 'dark');
 
     themeBtn.onclick = () => {
@@ -154,7 +154,7 @@ function initTheme(stage: Stage): void {
  * @param pageEl - the page's container, holding a
  *   `.doc-content[data-md]` element naming its markdown source file
  */
-function loadDocPage(pageEl: Element): void {
+export function loadDocPage(pageEl: Element): void {
     const container = pageEl.querySelector<HTMLElement>('.doc-content[data-md]');
     if (!container || container.dataset.loaded) return;
     fetch(container.dataset.md ?? '')
@@ -171,7 +171,7 @@ function loadDocPage(pageEl: Element): void {
  * (loadDocPage).
  * @param stage - NGL Stage
  */
-function initNavbar(stage: Stage): void {
+export function initNavbar(stage: Stage): void {
     const tabs = document.querySelectorAll<HTMLElement>('.navbar-tab');
     const pages = document.querySelectorAll<HTMLElement>('.page');
     tabs.forEach(tab => {
@@ -194,7 +194,7 @@ function initNavbar(stage: Stage): void {
  * dialogs, recenter/save-image), and delegates the rest to initTheme/
  * initTabs/initNavbar.
  */
-function main(): void {
+export function main(): void {
     // Capture wheel events within the viewer so the page doesn't scroll when zooming.
     // https://github.com/nglviewer/ngl/issues/878#issuecomment-913504711
     const stageContainer = byId('viewport');

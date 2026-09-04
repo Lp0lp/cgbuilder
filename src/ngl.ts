@@ -3,7 +3,7 @@
    ===========================================================================
    Re-exposes the pieces of the `ngl` npm package the app uses under the
    minimal `NGLStatic` surface it already relies on, replacing the former
-   `NGL` browser global (which was loaded via a <script> tag). NGL re-exports
+   `NGL` browser global (which was loaded via a `<script>` tag). NGL re-exports
    three's `Vector3`, so all three constructors come from the one package.
 
    All the type impedance between our deliberately-partial interfaces (see

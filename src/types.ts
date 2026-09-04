@@ -98,7 +98,7 @@ export interface Stage {
     makeImage(params: object): Promise<Blob>;
 }
 
-/** The `NGL` browser global (loaded via <script> tag in index.html). */
+/** The `NGL` browser global (loaded via `<script>` tag in index.html). */
 export interface NGLStatic {
     Vector3: new (x?: number, y?: number, z?: number) => Vec3;
     Stage: new (idOrElement: string | HTMLElement) => Stage;
