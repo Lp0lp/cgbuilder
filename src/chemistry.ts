@@ -736,7 +736,7 @@ const _PERIOD_4_PLUS = new Set(['BR', 'SE', 'I']);
 /**
  * Bead-sizing weight for one element: 0.5 for F, 2 for a period->=4 atom, and 1 otherwise.
  * @param element - element symbol, any case
- * @returns 1 or 2
+ * @returns 0.5 for fluorine, 2 for period-4-or-heavier elements, or 1 otherwise
  */
 export function heavyAtomWeight(element: string | undefined): number {
     const normalizedElement = (element || '').toUpperCase();

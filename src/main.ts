@@ -84,7 +84,7 @@ export function loadMoleculeFromFile(file: File, stage: Stage): Promise<void> {
 }
 
 /**
- * The "Choose File" <input type="file">'s change handler.
+ * The "Choose File" `<input type="file">` change handler.
  * @param event
  * @param stage - NGL Stage
  */
@@ -111,7 +111,7 @@ export function initTabs(): void {
  * Wire up the dark/light theme toggle and keep the NGL stage's background
  * colour in sync with it (and vice versa, via the separate "Light BG"
  * checkbox — the two are independent: page theme is persisted to
- * localStorage and restored on load via the inline <head> script; the
+ * localStorage and restored on load via the inline `<head>` script; the
  * viewer background is a per-session NGL parameter, not persisted).
  * @param stage - NGL Stage
  */
@@ -126,7 +126,7 @@ export function initTheme(stage: Stage): void {
         stage.setParameters({ backgroundColor: isDark ? 'black' : 'white' });
     }
 
-    // Initialise BG to match the starting theme (set by the inline <head> script)
+    // Initialise BG to match the starting theme (set by the inline `<head>` script)
     syncBg(document.documentElement.getAttribute('data-theme') === 'dark');
 
     themeBtn.onclick = () => {

@@ -2,7 +2,7 @@
   "$schema": "https://typedoc.org/schema.json",
   "entryPoints": ["src/*.ts"],
   "entryPointStrategy": "expand",
-  "exclude": ["src/tests/**", "src/assets.d.ts"],
+  "exclude": ["src/tests/**", "src/assets.d.ts", "src/example.ts"],
   "tsconfig": "tsconfig.json",
   "out": "docs",
   "name": "CGBuilder",
