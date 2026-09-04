@@ -25,15 +25,15 @@ import type { AtomProxy, BeadDef, RepresentationParams } from './types.js';
  * @param collection - BeadCollection
  */
 export function generateNDX(collection: BeadCollection): string {
-    let ndx = "";
-    for (const bead of collection.assignedBeads) {
-        ndx += "[ " + bead.name + " ]\n";
-        for (const atom of bead.atoms) {
-            ndx += (atom.index + 1) + " ";
-        }
-        ndx += "\n\n";
+  let ndx = '';
+  for (const bead of collection.assignedBeads) {
+    ndx += '[ ' + bead.name + ' ]\n';
+    for (const atom of bead.atoms) {
+      ndx += atom.index + 1 + ' ';
     }
-    return ndx;
+    ndx += '\n\n';
+  }
+  return ndx;
 }
 
 /**
@@ -48,33 +48,33 @@ export function generateNDX(collection: BeadCollection): string {
  * @param collection - BeadCollection
  */
 export function generateMap(collection: BeadCollection): string {
-    let output = "[ to ]\nmartini\n\n[ martini ]\n";
-    const atomToBeads: Record<string, string[]> = {};
-    const atoms: AtomProxy[] = [];
-    for (const bead of collection.assignedBeads) {
-        output += bead.name + " ";
-        for (const atom of bead.atoms) {
-            const atomname = collection.atomName(atom);
-            if (atomToBeads[atomname] === undefined) {
-                atomToBeads[atomname] = [];
-                atoms.push(atom);
-            }
-            atomToBeads[atomname].push(bead.name ?? "");
-        }
+  let output = '[ to ]\nmartini\n\n[ martini ]\n';
+  const atomToBeads: Record<string, string[]> = {};
+  const atoms: AtomProxy[] = [];
+  for (const bead of collection.assignedBeads) {
+    output += bead.name + ' ';
+    for (const atom of bead.atoms) {
+      const atomname = collection.atomName(atom);
+      if (atomToBeads[atomname] === undefined) {
+        atomToBeads[atomname] = [];
+        atoms.push(atom);
+      }
+      atomToBeads[atomname].push(bead.name ?? '');
     }
-    output += "\n\n";
+  }
+  output += '\n\n';
 
-    output += "[ atoms ]\n";
-    atoms.sort((a, b) => a.index - b.index);
-    for (let index = 0; index < atoms.length; index++) {
-        const atomname = collection.atomName(atoms[index]);
-        output += (index + 1) + "\t" + atomname;
-        for (const bead of atomToBeads[atomname]) {
-            output += "\t" + bead;
-        }
-        output += "\n";
+  output += '[ atoms ]\n';
+  atoms.sort((a, b) => a.index - b.index);
+  for (let index = 0; index < atoms.length; index++) {
+    const atomname = collection.atomName(atoms[index]);
+    output += index + 1 + '\t' + atomname;
+    for (const bead of atomToBeads[atomname]) {
+      output += '\t' + bead;
     }
-    return output;
+    output += '\n';
+  }
+  return output;
 }
 
 /**
@@ -89,34 +89,39 @@ export function generateMap(collection: BeadCollection): string {
  * @returns empty string if the collection has no beads
  */
 export function generatePythonAssignments(collection: BeadCollection): string {
-    const beads = collection.assignedBeads || [];
-    if (beads.length === 0) return "";
+  const beads = collection.assignedBeads || [];
+  if (beads.length === 0) return '';
 
-    let resname = "UNK";
-    for (const bead of beads) {
-        if (bead.atoms && bead.atoms.length > 0) { resname = bead.resname; break; }
+  let resname = 'UNK';
+  for (const bead of beads) {
+    if (bead.atoms && bead.atoms.length > 0) {
+      resname = bead.resname;
+      break;
     }
+  }
 
-    const lines: string[] = [];
-    lines.push("mapping = {");
-    lines.push("    ## resname");
-    lines.push(`    "${resname}": {`);
-    lines.push("    ## bead name; type(opt.);   charge(opt.);         Mapping.");
+  const lines: string[] = [];
+  lines.push('mapping = {');
+  lines.push('    ## resname');
+  lines.push(`    "${resname}": {`);
+  lines.push('    ## bead name; type(opt.);   charge(opt.);         Mapping.');
 
-    for (const bead of beads) {
-        const beadName   = bead.name;
-        const beadType   = bead.type || "type";
-        const beadCharge = bead.charge ?? 0;
-        const atomNames  = collection.expandedAtomNames(bead)
-            .map((name) => `'${name}'`).join(",");
-        lines.push(
-            `        "${beadName}": {"type": "${beadType}", "charge": ${beadCharge}, "atoms": [${atomNames}]},`
-        );
-    }
+  for (const bead of beads) {
+    const beadName = bead.name;
+    const beadType = bead.type || 'type';
+    const beadCharge = bead.charge ?? 0;
+    const atomNames = collection
+      .expandedAtomNames(bead)
+      .map((name) => `'${name}'`)
+      .join(',');
+    lines.push(
+      `        "${beadName}": {"type": "${beadType}", "charge": ${beadCharge}, "atoms": [${atomNames}]},`,
+    );
+  }
 
-    lines.push("    },");
-    lines.push("}");
-    return lines.join("\n") + "\n";
+  lines.push('    },');
+  lines.push('}');
+  return lines.join('\n') + '\n';
 }
 
 /**
@@ -128,28 +133,33 @@ export function generatePythonAssignments(collection: BeadCollection): string {
  * @param collection - BeadCollection
  */
 export function generatePyCGTOOL(collection: BeadCollection): string {
-    const beads = collection.assignedBeads;
-    if (beads.length === 0) return '';
+  const beads = collection.assignedBeads;
+  if (beads.length === 0) return '';
 
-    let resname = 'UNK';
-    for (const bead of beads) {
-        if (bead.atoms && bead.atoms.length > 0) { resname = bead.resname; break; }
+  let resname = 'UNK';
+  for (const bead of beads) {
+    if (bead.atoms && bead.atoms.length > 0) {
+      resname = bead.resname;
+      break;
     }
+  }
 
-    const nameW  = Math.max(...beads.map((b) => (b.name ?? '').length));
-    const typeW  = Math.max(...beads.map((b) => (b.type || 'C1').length));
-    const chargeW = Math.max(...beads.map((b) => String(Math.round(b.charge ?? 0)).length));
+  const nameW = Math.max(...beads.map((b) => (b.name ?? '').length));
+  const typeW = Math.max(...beads.map((b) => (b.type || 'C1').length));
+  const chargeW = Math.max(
+    ...beads.map((b) => String(Math.round(b.charge ?? 0)).length),
+  );
 
-    const lines = [`; CGBuilder export`, `[ ${resname} ]`];
-    for (const bead of beads) {
-        const atoms  = collection.expandedAtomNames(bead).join(' ');
-        const charge = Math.round(bead.charge ?? 0);
-        const name   = bead.name ?? '';
-        lines.push(
-            `${name.padEnd(nameW)}  ${(bead.type || 'C1').padEnd(typeW)}  ${String(charge).padStart(chargeW)}  ${atoms}`
-        );
-    }
-    return lines.join('\n') + '\n';
+  const lines = [`; CGBuilder export`, `[ ${resname} ]`];
+  for (const bead of beads) {
+    const atoms = collection.expandedAtomNames(bead).join(' ');
+    const charge = Math.round(bead.charge ?? 0);
+    const name = bead.name ?? '';
+    lines.push(
+      `${name.padEnd(nameW)}  ${(bead.type || 'C1').padEnd(typeW)}  ${String(charge).padStart(chargeW)}  ${atoms}`,
+    );
+  }
+  return lines.join('\n') + '\n';
 }
 
 /**
@@ -159,12 +169,12 @@ export function generatePyCGTOOL(collection: BeadCollection): string {
  * @param collection - BeadCollection
  */
 export function generateBartender(collection: BeadCollection): string {
-    const lines = ['BEADS'];
-    collection.assignedBeads.forEach((bead, i) => {
-        const indices = bead.expandedAtoms().map((a) => a.index + 1);
-        lines.push(`${i + 1} ${indices.join(',')}`);
-    });
-    return lines.join('\n') + '\n';
+  const lines = ['BEADS'];
+  collection.assignedBeads.forEach((bead, i) => {
+    const indices = bead.expandedAtoms().map((a) => a.index + 1);
+    lines.push(`${i + 1} ${indices.join(',')}`);
+  });
+  return lines.join('\n') + '\n';
 }
 
 /**
@@ -181,22 +191,23 @@ export function generateBartender(collection: BeadCollection): string {
  * @param collection - BeadCollection
  */
 export function generateGRO(collection: BeadCollection): string {
-    let output = "Generated with cgbuilder\n" + collection.assignedBeads.length + "\n";
-    let counter = 0;
-    for (const bead of collection.assignedBeads) {
-        counter += 1;
-        const resid    = String(bead.resid).padStart(5);
-        const atomid   = String(counter).padStart(5);
-        const resname  = bead.resname.padEnd(5).substring(0, 5);
-        const atomname = (bead.name ?? "").padStart(5).substring(0, 5);
-        const center   = bead.center;
-        const x = (center.x / 10).toFixed(3).padStart(8);
-        const y = (center.y / 10).toFixed(3).padStart(8);
-        const z = (center.z / 10).toFixed(3).padStart(8);
-        output += resid + resname + atomname + atomid + x + y + z + '\n';
-    }
-    output += "10 10 10\n";
-    return output;
+  let output =
+    'Generated with cgbuilder\n' + collection.assignedBeads.length + '\n';
+  let counter = 0;
+  for (const bead of collection.assignedBeads) {
+    counter += 1;
+    const resid = String(bead.resid).padStart(5);
+    const atomid = String(counter).padStart(5);
+    const resname = bead.resname.padEnd(5).substring(0, 5);
+    const atomname = (bead.name ?? '').padStart(5).substring(0, 5);
+    const center = bead.center;
+    const x = (center.x / 10).toFixed(3).padStart(8);
+    const y = (center.y / 10).toFixed(3).padStart(8);
+    const z = (center.z / 10).toFixed(3).padStart(8);
+    output += resid + resname + atomname + atomid + x + y + z + '\n';
+  }
+  output += '10 10 10\n';
+  return output;
 }
 
 /**
@@ -207,13 +218,16 @@ export function generateGRO(collection: BeadCollection): string {
  * @param text
  */
 export function download(filename: string, text: string): void {
-    const element = document.createElement('a');
-    element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
-    element.setAttribute('download', filename);
-    element.style.display = 'none';
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
+  const element = document.createElement('a');
+  element.setAttribute(
+    'href',
+    'data:text/plain;charset=utf-8,' + encodeURIComponent(text),
+  );
+  element.setAttribute('download', filename);
+  element.style.display = 'none';
+  document.body.appendChild(element);
+  element.click();
+  document.body.removeChild(element);
 }
 
 /**
@@ -224,23 +238,23 @@ export function download(filename: string, text: string): void {
  * @param text
  */
 export function copyTextToClipboard(text: string): Promise<void> {
-    if (navigator.clipboard && window.isSecureContext) {
-        return navigator.clipboard.writeText(text);
-    }
-    const textarea = document.createElement("textarea");
-    textarea.value = text;
-    textarea.style.position = "fixed";
-    textarea.style.left = "-9999px";
-    textarea.style.top = "-9999px";
-    document.body.appendChild(textarea);
-    textarea.focus();
-    textarea.select();
-    try {
-        document.execCommand("copy");
-    } finally {
-        document.body.removeChild(textarea);
-    }
-    return Promise.resolve();
+  if (navigator.clipboard && window.isSecureContext) {
+    return navigator.clipboard.writeText(text);
+  }
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+  textarea.style.top = '-9999px';
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  try {
+    document.execCommand('copy');
+  } finally {
+    document.body.removeChild(textarea);
+  }
+  return Promise.resolve();
 }
 
 /**
@@ -254,14 +268,14 @@ export function copyTextToClipboard(text: string): Promise<void> {
  * @returns one name per ATOM/HETATM line, in file order
  */
 function parsePDBAtomNames(content: string): string[] {
-    const names: string[] = [];
-    const lines = content.split(/\r?\n/);
-    for (const line of lines) {
-        if (line.startsWith("ATOM  ") || line.startsWith("HETATM")) {
-            names.push(line.substring(12, 16).trim());
-        }
+  const names: string[] = [];
+  const lines = content.split(/\r?\n/);
+  for (const line of lines) {
+    if (line.startsWith('ATOM  ') || line.startsWith('HETATM')) {
+      names.push(line.substring(12, 16).trim());
     }
-    return names;
+  }
+  return names;
 }
 
 /**
@@ -273,16 +287,16 @@ function parsePDBAtomNames(content: string): string[] {
  * @returns one name per atom line, in file order
  */
 function parseGROAtomNames(content: string): string[] {
-    const names: string[] = [];
-    const lines = content.split(/\r?\n/);
-    if (lines.length < 3) return names;
-    const count = parseInt(lines[1].trim(), 10);
-    if (!Number.isFinite(count) || count <= 0) return names;
-    const atomLines = lines.slice(2, 2 + count);
-    for (const line of atomLines) {
-        if (line.length >= 15) names.push(line.substring(10, 15).trim());
-    }
-    return names;
+  const names: string[] = [];
+  const lines = content.split(/\r?\n/);
+  if (lines.length < 3) return names;
+  const count = parseInt(lines[1].trim(), 10);
+  if (!Number.isFinite(count) || count <= 0) return names;
+  const atomLines = lines.slice(2, 2 + count);
+  for (const line of atomLines) {
+    if (line.length >= 15) names.push(line.substring(10, 15).trim());
+  }
+  return names;
 }
 
 /**
@@ -292,10 +306,11 @@ function parseGROAtomNames(content: string): string[] {
  * @returns empty array for unrecognised extensions
  */
 function parseOriginalAtomNames(content: string, filename: string): string[] {
-    const lower = (filename || "").toLowerCase();
-    if (lower.endsWith(".pdb") || lower.endsWith(".ent")) return parsePDBAtomNames(content);
-    if (lower.endsWith(".gro")) return parseGROAtomNames(content);
-    return [];
+  const lower = (filename || '').toLowerCase();
+  if (lower.endsWith('.pdb') || lower.endsWith('.ent'))
+    return parsePDBAtomNames(content);
+  if (lower.endsWith('.gro')) return parseGROAtomNames(content);
+  return [];
 }
 
 /**
@@ -309,11 +324,12 @@ function parseOriginalAtomNames(content: string, filename: string): string[] {
  * @param file
  */
 export function readOriginalAtomNames(file: File): Promise<string[]> {
-    const lower = (file && file.name ? file.name : "").toLowerCase();
-    if (lower.endsWith(".gz")) return Promise.resolve([]);
-    return file.text()
-        .then((content) => parseOriginalAtomNames(content, file.name))
-        .catch(() => []);
+  const lower = (file && file.name ? file.name : '').toLowerCase();
+  if (lower.endsWith('.gz')) return Promise.resolve([]);
+  return file
+    .text()
+    .then((content) => parseOriginalAtomNames(content, file.name))
+    .catch(() => []);
 }
 
 /**
@@ -336,19 +352,26 @@ export function readOriginalAtomNames(file: File): Promise<string[]> {
  * @param text - pasted Shaker `mapping = {...}` text
  */
 export function parseShakerMapping(text: string): BeadDef[] {
-    const beads: BeadDef[] = [];
-    const beadRe = /"([^"]+)":\s*\{([^{}]*)\}/g;
-    let m: RegExpExecArray | null;
-    while ((m = beadRe.exec(text)) !== null) {
-        const body = m[2];
-        const typeMatch = body.match(/"type":\s*"([^"]*)"/);
-        const chargeMatch = body.match(/"charge":\s*([^,\s}]+)/);
-        const atomsMatch = body.match(/"atoms":\s*\[([^\]]*)\]/);
-        if (!typeMatch || !chargeMatch || !atomsMatch) continue;
-        const atoms = [...atomsMatch[1].matchAll(/['"]([^'"]+)['"]/g)].map(x => x[1]);
-        beads.push({ name: m[1], type: typeMatch[1], charge: parseFloat(chargeMatch[1]) || 0, atoms });
-    }
-    return beads;
+  const beads: BeadDef[] = [];
+  const beadRe = /"([^"]+)":\s*\{([^{}]*)\}/g;
+  let m: RegExpExecArray | null;
+  while ((m = beadRe.exec(text)) !== null) {
+    const body = m[2];
+    const typeMatch = body.match(/"type":\s*"([^"]*)"/);
+    const chargeMatch = body.match(/"charge":\s*([^,\s}]+)/);
+    const atomsMatch = body.match(/"atoms":\s*\[([^\]]*)\]/);
+    if (!typeMatch || !chargeMatch || !atomsMatch) continue;
+    const atoms = [...atomsMatch[1].matchAll(/['"]([^'"]+)['"]/g)].map(
+      (x) => x[1],
+    );
+    beads.push({
+      name: m[1],
+      type: typeMatch[1],
+      charge: parseFloat(chargeMatch[1]) || 0,
+      atoms,
+    });
+  }
+  return beads;
 }
 
 /**
@@ -362,6 +385,11 @@ export function parseShakerMapping(text: string): BeadDef[] {
  * @param overrides
  * @returns NGL representation parameters
  */
-export function bondAwareRepresentationParams(overrides: RepresentationParams = {}): RepresentationParams {
-    return Object.assign({ multipleBond: true, bondSpacing: 1, bondScale: 0.4 }, overrides);
+export function bondAwareRepresentationParams(
+  overrides: RepresentationParams = {},
+): RepresentationParams {
+  return Object.assign(
+    { multipleBond: true, bondSpacing: 1, bondScale: 0.4 },
+    overrides,
+  );
 }

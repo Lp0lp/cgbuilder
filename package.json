@@ -4,12 +4,28 @@
   "description": "CGBuilder — Visual tool to build CG molecule models",
   "type": "module",
   "scripts": {
+    "prepare": "husky",
+    "lint": "eslint eslint.config.js build.mjs vitest.config.ts \"src/**/*.ts\"",
+    "lint:fix": "eslint eslint.config.js build.mjs vitest.config.ts \"src/**/*.ts\" --fix",
+    "format": "prettier --write package.json eslint.config.js build.mjs vitest.config.ts \"src/**/*.ts\" \".github/workflows/**/*.yml\" .github/dependabot.yml",
+    "format:check": "prettier --check package.json eslint.config.js build.mjs vitest.config.ts \"src/**/*.ts\" \".github/workflows/**/*.yml\" .github/dependabot.yml",
+    "fix": "npm run lint:fix && npm run format",
+    "check": "npm run lint && npm run format:check && npm test && npm run build",
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck && node build.mjs",
     "dev": "node build.mjs --watch",
     "test": "vitest run",
     "test:watch": "vitest",
     "docs": "typedoc"
+  },
+  "lint-staged": {
+    "*.{js,mjs,ts}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,yml,yaml}": [
+      "prettier --write"
+    ]
   },
   "repository": {
     "type": "git",
@@ -22,10 +38,20 @@
     "url": "https://github.com/Lp0lp/cgbuilder/issues"
   },
   "homepage": "https://github.com/Lp0lp/cgbuilder#readme",
+  "engines": {
+    "node": ">=24 <25"
+  },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "esbuild": "^0.28.1",
+    "eslint": "^10.10.0",
+    "eslint-config-prettier": "^10.1.8",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.4.1",
+    "prettier": "^3.9.6",
     "typedoc": "^0.28.20",
     "typescript": "^6.0.3",
+    "typescript-eslint": "^8.69.0",
     "vitest": "^4.1.9"
   },
   "dependencies": {

@@ -21,18 +21,19 @@ let _rdkitPromise: Promise<RDKitModule> | null = null;
  * @returns resolves to the initialized RDKit module
  */
 export function loadRDKit(): Promise<RDKitModule> {
-    if (_rdkitPromise) return _rdkitPromise;
-    _rdkitPromise = import('@rdkit/rdkit')
-        // The package is CommonJS (`module.exports = initRDKitModule`), so the
-        // loader is the default export at runtime — the shipped .d.ts only
-        // declares the named types, hence the cast to reach `.default`.
-        .then((mod) => {
-            const initRDKitModule = (mod as unknown as { default: RDKitLoader }).default;
-            return initRDKitModule({ locateFile: () => wasmUrl });
-        })
-        .catch((err) => {
-            _rdkitPromise = null;
-            throw err;
-        });
-    return _rdkitPromise;
+  if (_rdkitPromise) return _rdkitPromise;
+  _rdkitPromise = import('@rdkit/rdkit')
+    // The package is CommonJS (`module.exports = initRDKitModule`), so the
+    // loader is the default export at runtime — the shipped .d.ts only
+    // declares the named types, hence the cast to reach `.default`.
+    .then((mod) => {
+      const initRDKitModule = (mod as unknown as { default: RDKitLoader })
+        .default;
+      return initRDKitModule({ locateFile: () => wasmUrl });
+    })
+    .catch((err) => {
+      _rdkitPromise = null;
+      throw err;
+    });
+  return _rdkitPromise;
 }

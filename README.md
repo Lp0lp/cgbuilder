@@ -2,11 +2,13 @@
 
 **A browser-based visual editor for building Martini 3 coarse-grained molecule mappings.**
 
+No installation is required. Open the site in a WebGL-capable browser:
+
+**[Open CGBuilder](https://lp0lp.github.io/cgbuilder/)**
+
 Load an all-atom structure, map beads interactively in a 3D viewer, get automated bead-type predictions, compare SASA values against your AA reference, and export ready-to-use mapping files.
 
 > Fork of [jbarnoud/cgbuilder](https://github.com/jbarnoud/cgbuilder), substantially extended with weighted atom assignment, bead-type prediction, SASA comparison, [Shaker](https://github.com/Lp0lp/shaker)-format import/export, and more...
-
----
 
 ## Features
 
@@ -18,79 +20,26 @@ Load an all-atom structure, map beads interactively in a 3D viewer, get automate
 - **[Shaker](https://github.com/Lp0lp/shaker)-format import** — paste an existing mapping to restore beads, types, charges, and atom assignments automatically.
 - **Export** — `.gro` (CG coordinates), `.ndx` (atom-index groups), `.map` (martinize/backward mapping), [Shaker](https://github.com/Lp0lp/shaker) Python dict, [Bartender](https://github.com/Martini-Force-Field-Initiative/Bartender) mapping, and AA SMILES.
 
----
-
-## Quick start
-
-```bash
-npm install
-npm run dev      # builds and serves on http://localhost:8000 with live reload
-```
-
-Or for a one-off production build:
-
-```bash
-npm run build    # type-checks then bundles into dist/
-```
-
-Serve `dist/` with any static file server.
-
----
-
 ## Input formats
 
-| Format | Load molecule | Notes |
-|--------|--------------|-------|
-| `.pdb` | ✓ | Bond orders inferred; explicit H needed for prediction |
-| `.gro` | ✓ | GROMACS coordinate file; explicit H needed for prediction |
-[//]: # (SDF and MOL2 support has been dropped but might be considered again in the future see )
-[//]: # (| `.sdf` / `.mol2` | ✓ | Bond-order metadata preserved; best for double-bond rendering |) 
+| Format | Load molecule | Notes                                                     |
+| ------ | ------------- | --------------------------------------------------------- |
+| `.pdb` | ✓             | Bond orders inferred; explicit H needed for prediction    |
+| `.gro` | ✓             | GROMACS coordinate file; explicit H needed for prediction |
 
 > **Explicit hydrogens required** for bead-type prediction and AA SMILES export. Use a protonation tool before loading if needed.
 
----
-
 ## Export formats
 
-| File | Contents |
-|------|---------|
-| `.gro` | CG bead coordinates in GROMACS format |
-| `.ndx` | GROMACS index file — one group per bead, atoms by index |
-| `.map` | Martini backward/martinize mapping — `[ to ]`/`[ martini ]`/`[ atoms ]` sections |
-| Shaker dict | [Shaker](https://github.com/Lp0lp/shaker)-format Python assignment dict — bead names, types, charges, atom lists |
-| Bartender mapping | `BEADS` section + one line per bead with 1-based atom indices (repeated by weight) |
-| PyCGTOOL mapping | [PyCGTOOL](https://github.com/jag1g13/pycgtool) `.map` — `[ resname ]` section + one line per bead (`name type charge atoms…`) |
-| AA SMILES | SMILES string for each bead's fragment (requires explicit H) |
-
----
-
-## Project layout
-
-```
-public/                 static assets copied into dist/ at build time
-  index.html            entry point
-  main.css              all styling, CSS variables, dark-mode tokens
-  content/
-    howto.md            in-app How to use documentation
-    guidelines.md       Martini 3 bead-type parameterization reference material
-src/                    TypeScript source
-  main.ts               app bootstrap, file loading, event wiring
-  visualization.ts      NGL stage wrapper, bead rendering, UI interaction
-  bead.ts               Bead / BeadCollection data model
-  chemistry.ts          bond perception, valence assignment, RDKit SMILES
-  prediction.ts         bead-type prediction heuristics
-  sasa.ts               Shrake-Rupley SASA solver
-  fileformats.ts        PDB/GRO/SDF/MOL2 parsing, .gro/.ndx/.map/.bartender export
-  rdkit.ts              lazy RDKit-WASM loader (npm, code-split chunk)
-  ngl.ts                NGL npm adapter (replaces browser global)
-  dom.ts                typed getElementById helper
-  types.ts              shared interfaces (NGL, RDKit, chemistry, bead shapes)
-  example.ts            bundled example molecule (PDB + mapping)
-  tests/                Vitest unit tests (89 tests across 6 files)
-build.mjs               esbuild driver (bundling + dev server)
-```
-
----
+| File              | Contents                                                                                                                       |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `.gro`            | CG bead coordinates in GROMACS format                                                                                          |
+| `.ndx`            | GROMACS index file — one group per bead, atoms by index                                                                        |
+| `.map`            | Martini backward/martinize mapping — `[ to ]`/`[ martini ]`/`[ atoms ]` sections                                               |
+| Shaker dict       | [Shaker](https://github.com/Lp0lp/shaker)-format Python assignment dict — bead names, types, charges, atom lists               |
+| Bartender mapping | `BEADS` section + one line per bead with 1-based atom indices (repeated by weight)                                             |
+| PyCGTOOL mapping  | [PyCGTOOL](https://github.com/jag1g13/pycgtool) `.map` — `[ resname ]` section + one line per bead (`name type charge atoms…`) |
+| AA SMILES         | SMILES string for each bead's fragment (requires explicit H)                                                                   |
 
 ## Running tests
 
@@ -99,26 +48,62 @@ npm test             # single run
 npm run test:watch   # watch mode
 ```
 
-Tests cover all modules. No browser or DOM dependency — the suite runs in Node via Vitest with minimal stubs for NGL and RDKit globals.
+Tests cover all modules. No browser or DOM dependency is required; the suite runs in Node via Vitest with minimal stubs for NGL and RDKit globals.
 
 ---
 
 ## Dependencies
 
-| Library | Purpose |
-|---------|---------|
-| [NGL](https://github.com/nglviewer/ngl) | 3D molecular viewer (npm, bundled) |
+| Library                                           | Purpose                                                           |
+| ------------------------------------------------- | ----------------------------------------------------------------- |
+| [NGL](https://github.com/nglviewer/ngl)           | 3D molecular viewer (npm, bundled)                                |
 | [@rdkit/rdkit](https://github.com/rdkit/rdkit-js) | SMILES generation and fragment canonicalisation (npm, code-split) |
-| [marked](https://github.com/markedjs/marked) | Markdown rendering for in-app docs (CDN) |
-| [Inter](https://fonts.google.com/specimen/Inter) | UI typeface (Google Fonts) |
+| [marked](https://github.com/markedjs/marked)      | Markdown rendering for in-app docs (CDN)                          |
 
-`devDependencies`: [TypeScript](https://www.typescriptlang.org/), [esbuild](https://esbuild.github.io/), [Vitest](https://vitest.dev/).
+Development tooling includes [TypeScript](https://www.typescriptlang.org/), [ESLint](https://eslint.org/), [Prettier](https://prettier.io/), [esbuild](https://esbuild.github.io/), [Vitest](https://vitest.dev/), [TypeDoc](https://typedoc.org/), [Husky](https://typicode.github.io/husky/), and [lint-staged](https://github.com/lint-staged/lint-staged).
 
----
+## Self-deployment
+
+CGBuilder is a static web application. You can build it locally and publish the generated `dist/` directory to any static hosting provider or web server.
+
+Node.js 24 is required for building. The repository includes `.nvmrc` for version managers such as `nvm`. If you do not use `nvm`, install Node.js 24 through your preferred method.
+
+```bash
+git clone https://github.com/Lp0lp/cgbuilder.git
+cd cgbuilder
+nvm use
+npm ci
+npm run check
+```
+
+`npm run check` runs the lint, formatting, test, and production-build checks. After it completes, publish the contents of `dist/` to your hosting provider.
+
+## Developer workflow
+
+Start the development server with live reload:
+
+```bash
+npm run dev
+```
+
+Useful commands:
+
+```bash
+npm run fix           # apply ESLint fixes, then format files
+npm run check         # lint, format check, tests, and build
+npm test              # run tests once
+npm run test:watch    # run tests in watch mode
+npm run docs          # generate API documentation
+```
+
+- Code quality is enforced with [ESLint](https://eslint.org/).
+- Formatting is enforced with [Prettier](https://prettier.io/).
+- [Husky](https://typicode.github.io/husky/) automatically runs lint-staged on staged files before each commit. ESLint runs first, followed by Prettier.
+- The GitHub Actions workflow repeats the checks in read-only mode for pull requests and validated builds.
 
 ## Acknowledgements
 
 - Original CGBuilder by [@jbarnoud](https://github.com/jbarnoud/cgbuilder)
 - Bead-type prediction approach inspired by [AutoMartini](https://doi.org/10.1021/acs.jctc.5b00056) (Bereau & Kremer, 2015) and extended for Martini 3 by [Szczuka et al., JCTC 2025](https://doi.org/10.1021/acs.jctc.5c01178)
-- Shrake-Rupley SASA algorithm: [Shrake & Rupley, J. Mol. Biol. 1973](https://doi.org/10.1016/0022-2836(73)90011-9)
+- Shrake-Rupley SASA algorithm: [Shrake & Rupley, J. Mol. Biol. 1973](<https://doi.org/10.1016/0022-2836(73)90011-9>)
 - [Martini 3 force field](http://cgmartini.nl/)

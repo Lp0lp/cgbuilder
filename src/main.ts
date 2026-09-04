@@ -1,6 +1,9 @@
 import { BeadCollection } from './bead.js';
 import { Visualization } from './visualization.js';
-import { readOriginalAtomNames, bondAwareRepresentationParams } from './fileformats.js';
+import {
+  readOriginalAtomNames,
+  bondAwareRepresentationParams,
+} from './fileformats.js';
 import { EXAMPLE_PDB, EXAMPLE_MAPPING } from './example.js';
 import { byId } from './dom.js';
 import { NGL } from './ngl.js';
@@ -42,45 +45,53 @@ let currentVizu: Visualization | null = null;
  *   loading the bundled example) chain onto this
  */
 export function loadMoleculeFromFile(file: File, stage: Stage): Promise<void> {
-    stage.removeAllComponents();
-    stage.signals.clicked.removeAll();
+  stage.removeAllComponents();
+  stage.signals.clicked.removeAll();
 
-    const collection = new BeadCollection();
-    const vizu = new Visualization(collection, stage);
-    currentVizu = vizu;
+  const collection = new BeadCollection();
+  const vizu = new Visualization(collection, stage);
+  currentVizu = vizu;
 
-    const newBeadButtons = document.getElementsByClassName("new-bead") as HTMLCollectionOf<HTMLButtonElement>;
-    for (const button of newBeadButtons) button.disabled = true;
-    byId<HTMLButtonElement>('load-mapping-btn').disabled = true;
-    byId<HTMLButtonElement>('clear-beads-btn').disabled = true;
+  const newBeadButtons = document.getElementsByClassName(
+    'new-bead',
+  ) as HTMLCollectionOf<HTMLButtonElement>;
+  for (const button of newBeadButtons) button.disabled = true;
+  byId<HTMLButtonElement>('load-mapping-btn').disabled = true;
+  byId<HTMLButtonElement>('clear-beads-btn').disabled = true;
 
-    const namePromise = readOriginalAtomNames(file);
-    const componentPromise = stage.loadFile(file);
+  const namePromise = readOriginalAtomNames(file);
+  const componentPromise = stage.loadFile(file);
 
-    const ready = Promise.all([namePromise, componentPromise])
-        .then(([names, component]) => {
-            collection.setOriginalAtomNames(names || []);
-            component.addRepresentation("ball+stick", bondAwareRepresentationParams());
-            component.autoView();
-            vizu.attachAALabels(component);
-            vizu.attachRepresentation(component);
-            vizu.checkAtomNameUniqueness(component.structure);
-            vizu.countHeavyAtoms(component.structure);
-            vizu.updateSelection();
+  const ready = Promise.all([namePromise, componentPromise])
+    .then(([names, component]) => {
+      collection.setOriginalAtomNames(names || []);
+      component.addRepresentation(
+        'ball+stick',
+        bondAwareRepresentationParams(),
+      );
+      component.autoView();
+      vizu.attachAALabels(component);
+      vizu.attachRepresentation(component);
+      vizu.checkAtomNameUniqueness(component.structure);
+      vizu.countHeavyAtoms(component.structure);
+      vizu.updateSelection();
 
-            for (const button of newBeadButtons) {
-                button.onclick = (event) => vizu.onNewBead(event);
-                button.disabled = false;
-            }
-            byId<HTMLButtonElement>('load-mapping-btn').disabled = false;
-            byId<HTMLButtonElement>('clear-beads-btn').disabled = false;
-            stage.signals.clicked.add((pickingProxy) => vizu.onClick(pickingProxy));
-        })
-        .catch((err) => {
-            console.error("Error loading molecule or reading original atom names:", err);
-        });
+      for (const button of newBeadButtons) {
+        button.onclick = () => vizu.onNewBead();
+        button.disabled = false;
+      }
+      byId<HTMLButtonElement>('load-mapping-btn').disabled = false;
+      byId<HTMLButtonElement>('clear-beads-btn').disabled = false;
+      stage.signals.clicked.add((pickingProxy) => vizu.onClick(pickingProxy));
+    })
+    .catch((err) => {
+      console.error(
+        'Error loading molecule or reading original atom names:',
+        err,
+      );
+    });
 
-    return ready;
+  return ready;
 }
 
 /**
@@ -89,22 +100,22 @@ export function loadMoleculeFromFile(file: File, stage: Stage): Promise<void> {
  * @param stage - NGL Stage
  */
 export function loadMolecule(event: Event, stage: Stage): void {
-    const files = (event.target as HTMLInputElement).files;
-    if (files && files[0]) loadMoleculeFromFile(files[0], stage);
+  const files = (event.target as HTMLInputElement).files;
+  if (files && files[0]) loadMoleculeFromFile(files[0], stage);
 }
 
 /** Wire up the output-tab bar (Shaker/.gro/.ndx/.map/AA SMILES) switching. */
 export function initTabs(): void {
-    const btns = document.querySelectorAll<HTMLElement>('.tab-btn');
-    const panels = document.querySelectorAll<HTMLElement>('.tab-panel');
-    btns.forEach(btn => {
-        btn.onclick = () => {
-            btns.forEach(b => b.classList.remove('active'));
-            panels.forEach(p => p.classList.remove('active'));
-            btn.classList.add('active');
-            byId('tab-' + btn.dataset.tab).classList.add('active');
-        };
-    });
+  const btns = document.querySelectorAll<HTMLElement>('.tab-btn');
+  const panels = document.querySelectorAll<HTMLElement>('.tab-panel');
+  btns.forEach((btn) => {
+    btn.onclick = () => {
+      btns.forEach((b) => b.classList.remove('active'));
+      panels.forEach((p) => p.classList.remove('active'));
+      btn.classList.add('active');
+      byId('tab-' + btn.dataset.tab).classList.add('active');
+    };
+  });
 }
 
 /**
@@ -116,34 +127,37 @@ export function initTabs(): void {
  * @param stage - NGL Stage
  */
 export function initTheme(stage: Stage): void {
-    const themeBtn = byId('theme-toggle');
-    const bgToggle = byId<HTMLInputElement>('toggle-bg');
+  const themeBtn = byId('theme-toggle');
+  const bgToggle = byId<HTMLInputElement>('toggle-bg');
 
-    // Apply isDark to both the NGL viewer background and the "Light BG"
-    // checkbox's own state, so the two stay consistent with each other.
-    function syncBg(isDark: boolean): void {
-        bgToggle.checked = !isDark;
-        stage.setParameters({ backgroundColor: isDark ? 'black' : 'white' });
+  // Apply isDark to both the NGL viewer background and the "Light BG"
+  // checkbox's own state, so the two stay consistent with each other.
+  function syncBg(isDark: boolean): void {
+    bgToggle.checked = !isDark;
+    stage.setParameters({ backgroundColor: isDark ? 'black' : 'white' });
+  }
+
+  // Initialise BG to match the starting theme (set by the inline `<head>` script)
+  syncBg(document.documentElement.getAttribute('data-theme') === 'dark');
+
+  themeBtn.onclick = () => {
+    const nextDark =
+      document.documentElement.getAttribute('data-theme') !== 'dark';
+    if (nextDark) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      localStorage.setItem('cgbuilder-theme', 'dark');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+      localStorage.setItem('cgbuilder-theme', 'light');
     }
+    syncBg(nextDark);
+  };
 
-    // Initialise BG to match the starting theme (set by the inline `<head>` script)
-    syncBg(document.documentElement.getAttribute('data-theme') === 'dark');
-
-    themeBtn.onclick = () => {
-        const nextDark = document.documentElement.getAttribute('data-theme') !== 'dark';
-        if (nextDark) {
-            document.documentElement.setAttribute('data-theme', 'dark');
-            localStorage.setItem('cgbuilder-theme', 'dark');
-        } else {
-            document.documentElement.removeAttribute('data-theme');
-            localStorage.setItem('cgbuilder-theme', 'light');
-        }
-        syncBg(nextDark);
-    };
-
-    bgToggle.onchange = () => {
-        stage.setParameters({ backgroundColor: bgToggle.checked ? 'white' : 'black' });
-    };
+  bgToggle.onchange = () => {
+    stage.setParameters({
+      backgroundColor: bgToggle.checked ? 'white' : 'black',
+    });
+  };
 }
 
 /**
@@ -155,12 +169,17 @@ export function initTheme(stage: Stage): void {
  *   `.doc-content[data-md]` element naming its markdown source file
  */
 export function loadDocPage(pageEl: Element): void {
-    const container = pageEl.querySelector<HTMLElement>('.doc-content[data-md]');
-    if (!container || container.dataset.loaded) return;
-    fetch(container.dataset.md ?? '')
-        .then(r => r.text())
-        .then(md => { container.innerHTML = marked.parse(md, { async: false }); container.dataset.loaded = '1'; })
-        .catch(() => { container.innerHTML = '<p>Could not load documentation.</p>'; });
+  const container = pageEl.querySelector<HTMLElement>('.doc-content[data-md]');
+  if (!container || container.dataset.loaded) return;
+  fetch(container.dataset.md ?? '')
+    .then((r) => r.text())
+    .then((md) => {
+      container.innerHTML = marked.parse(md, { async: false });
+      container.dataset.loaded = '1';
+    })
+    .catch(() => {
+      container.innerHTML = '<p>Could not load documentation.</p>';
+    });
 }
 
 /**
@@ -172,19 +191,19 @@ export function loadDocPage(pageEl: Element): void {
  * @param stage - NGL Stage
  */
 export function initNavbar(stage: Stage): void {
-    const tabs = document.querySelectorAll<HTMLElement>('.navbar-tab');
-    const pages = document.querySelectorAll<HTMLElement>('.page');
-    tabs.forEach(tab => {
-        tab.onclick = () => {
-            tabs.forEach(t => t.classList.remove('active'));
-            pages.forEach(p => p.classList.remove('active'));
-            tab.classList.add('active');
-            const pageEl = byId('page-' + tab.dataset.page);
-            pageEl.classList.add('active');
-            if (tab.dataset.page === 'app') stage.handleResize();
-            else loadDocPage(pageEl);
-        };
-    });
+  const tabs = document.querySelectorAll<HTMLElement>('.navbar-tab');
+  const pages = document.querySelectorAll<HTMLElement>('.page');
+  tabs.forEach((tab) => {
+    tab.onclick = () => {
+      tabs.forEach((t) => t.classList.remove('active'));
+      pages.forEach((p) => p.classList.remove('active'));
+      tab.classList.add('active');
+      const pageEl = byId('page-' + tab.dataset.page);
+      pageEl.classList.add('active');
+      if (tab.dataset.page === 'app') stage.handleResize();
+      else loadDocPage(pageEl);
+    };
+  });
 }
 
 /**
@@ -195,88 +214,116 @@ export function initNavbar(stage: Stage): void {
  * initTabs/initNavbar.
  */
 export function main(): void {
-    // Capture wheel events within the viewer so the page doesn't scroll when zooming.
-    // https://github.com/nglviewer/ngl/issues/878#issuecomment-913504711
-    const stageContainer = byId('viewport');
-    window.addEventListener('wheel', (event) => {
-        if (stageContainer.contains(event.target as Node)) event.preventDefault();
-    }, { passive: false });
+  // Capture wheel events within the viewer so the page doesn't scroll when zooming.
+  // https://github.com/nglviewer/ngl/issues/878#issuecomment-913504711
+  const stageContainer = byId('viewport');
+  window.addEventListener(
+    'wheel',
+    (event) => {
+      if (stageContainer.contains(event.target as Node)) event.preventDefault();
+    },
+    { passive: false },
+  );
 
-    const stage = new NGL.Stage("viewport");
+  const stage = new NGL.Stage('viewport');
 
-    window.addEventListener("resize", () => stage.handleResize(), false);
+  window.addEventListener('resize', () => stage.handleResize(), false);
 
-    const mol_select = byId<HTMLInputElement>("mol-select");
-    mol_select.onchange = (event) => loadMolecule(event, stage);
+  const mol_select = byId<HTMLInputElement>('mol-select');
+  mol_select.onchange = (event) => loadMolecule(event, stage);
 
-    byId<HTMLButtonElement>('load-example-btn').onclick = () => {
-        const file = new File([EXAMPLE_PDB], 'example_L1.pdb', { type: 'text/plain' });
-        loadMoleculeFromFile(file, stage).then(() => {
-            if (currentVizu) currentVizu.loadShakerMapping(EXAMPLE_MAPPING);
-        });
-    };
+  byId<HTMLButtonElement>('load-example-btn').onclick = () => {
+    const file = new File([EXAMPLE_PDB], 'example_L1.pdb', {
+      type: 'text/plain',
+    });
+    loadMoleculeFromFile(file, stage).then(() => {
+      if (currentVizu) currentVizu.loadShakerMapping(EXAMPLE_MAPPING);
+    });
+  };
 
-    // Remove preset left-click centering behaviour (added in NGL v2.0.0-dev.11).
-    stage.mouseControls.remove("clickPick-left");
-    // Remove NGL's built-in ctrl-click distance/angle/dihedral measurement
-    // tool — it fires alongside our own atom-click-to-bead handling and
-    // looks like unrelated, confusing behaviour in this app.
-    stage.mouseControls.remove("clickPick-ctrl-left");
+  // Remove preset left-click centering behaviour (added in NGL v2.0.0-dev.11).
+  stage.mouseControls.remove('clickPick-left');
+  // Remove NGL's built-in ctrl-click distance/angle/dihedral measurement
+  // tool — it fires alongside our own atom-click-to-bead handling and
+  // looks like unrelated, confusing behaviour in this app.
+  stage.mouseControls.remove('clickPick-ctrl-left');
 
-    const buttons = document.getElementsByClassName("new-bead") as HTMLCollectionOf<HTMLButtonElement>;
-    for (const button of buttons) button.disabled = true;
+  const buttons = document.getElementsByClassName(
+    'new-bead',
+  ) as HTMLCollectionOf<HTMLButtonElement>;
+  for (const button of buttons) button.disabled = true;
 
-    const clearDialog = byId<HTMLDialogElement>('clear-beads-dialog');
-    byId<HTMLButtonElement>('clear-beads-btn').onclick    = () => clearDialog.showModal();
-    byId<HTMLButtonElement>('clear-beads-close').onclick  = () => clearDialog.close();
-    byId<HTMLButtonElement>('clear-beads-cancel').onclick = () => clearDialog.close();
-    byId<HTMLButtonElement>('clear-beads-confirm').onclick = () => {
-        if (currentVizu) {
-            currentVizu.collection.clearBeads();
-            currentVizu.collection.newBead();
-            currentVizu.updateSelection();
-        }
-        clearDialog.close();
-    };
-    clearDialog.addEventListener('click', e => { if (e.target === clearDialog) clearDialog.close(); });
+  const clearDialog = byId<HTMLDialogElement>('clear-beads-dialog');
+  byId<HTMLButtonElement>('clear-beads-btn').onclick = () =>
+    clearDialog.showModal();
+  byId<HTMLButtonElement>('clear-beads-close').onclick = () =>
+    clearDialog.close();
+  byId<HTMLButtonElement>('clear-beads-cancel').onclick = () =>
+    clearDialog.close();
+  byId<HTMLButtonElement>('clear-beads-confirm').onclick = () => {
+    if (currentVizu) {
+      currentVizu.collection.clearBeads();
+      currentVizu.collection.newBead();
+      currentVizu.updateSelection();
+    }
+    clearDialog.close();
+  };
+  clearDialog.addEventListener('click', (e) => {
+    if (e.target === clearDialog) clearDialog.close();
+  });
 
-    const pasteDialog = byId<HTMLDialogElement>('paste-mapping-dialog');
-    const pasteArea   = byId<HTMLTextAreaElement>('mapping-paste-area');
+  const pasteDialog = byId<HTMLDialogElement>('paste-mapping-dialog');
+  const pasteArea = byId<HTMLTextAreaElement>('mapping-paste-area');
 
-    byId<HTMLButtonElement>('load-mapping-btn').onclick = () => {
-        pasteArea.value = '';
-        pasteDialog.showModal();
-        pasteArea.focus();
-    };
-    byId<HTMLButtonElement>('paste-dialog-close').onclick  = () => pasteDialog.close();
-    byId<HTMLButtonElement>('paste-dialog-cancel').onclick = () => pasteDialog.close();
-    byId<HTMLButtonElement>('paste-dialog-apply').onclick  = () => {
-        const text = pasteArea.value.trim();
-        if (text && currentVizu) currentVizu.loadShakerMapping(text);
-        pasteDialog.close();
-    };
-    pasteDialog.addEventListener('click', e => { if (e.target === pasteDialog) pasteDialog.close(); });
+  byId<HTMLButtonElement>('load-mapping-btn').onclick = () => {
+    pasteArea.value = '';
+    pasteDialog.showModal();
+    pasteArea.focus();
+  };
+  byId<HTMLButtonElement>('paste-dialog-close').onclick = () =>
+    pasteDialog.close();
+  byId<HTMLButtonElement>('paste-dialog-cancel').onclick = () =>
+    pasteDialog.close();
+  byId<HTMLButtonElement>('paste-dialog-apply').onclick = () => {
+    const text = pasteArea.value.trim();
+    if (text && currentVizu) currentVizu.loadShakerMapping(text);
+    pasteDialog.close();
+  };
+  pasteDialog.addEventListener('click', (e) => {
+    if (e.target === pasteDialog) pasteDialog.close();
+  });
 
-    byId<HTMLButtonElement>('recenter').onclick = () => {
-        stage.setParameters({ clipNear: 0, clipFar: 100, fogNear: 50, fogFar: 100 });
-        stage.autoView();
-    };
+  byId<HTMLButtonElement>('recenter').onclick = () => {
+    stage.setParameters({
+      clipNear: 0,
+      clipFar: 100,
+      fogNear: 50,
+      fogFar: 100,
+    });
+    stage.autoView();
+  };
 
-    byId<HTMLButtonElement>('save-image').onclick = () => {
-        stage.makeImage({ factor: 2, antialias: true, trim: false, transparent: false })
-            .then(blob => {
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'cgbuilder.png';
-                a.click();
-                URL.revokeObjectURL(url);
-            });
-    };
+  byId<HTMLButtonElement>('save-image').onclick = () => {
+    stage
+      .makeImage({
+        factor: 2,
+        antialias: true,
+        trim: false,
+        transparent: false,
+      })
+      .then((blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'cgbuilder.png';
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+  };
 
-    initTheme(stage);
-    initTabs();
-    initNavbar(stage);
+  initTheme(stage);
+  initTabs();
+  initNavbar(stage);
 }
 
 // Run once the whole page (not just the DOM) has loaded, since main() reads

@@ -5,7 +5,7 @@ import { defineConfig } from 'vitest/config';
 // these tests (previous/tests/*.test.js); without this, `vitest` would pick
 // those up too and run the same suite twice.
 export default defineConfig({
-    test: {
-        include: ['src/tests/**/*.test.ts'],
-    },
+  test: {
+    include: ['src/tests/**/*.test.ts'],
+  },
 });
