@@ -43,7 +43,8 @@ Serve `dist/` with any static file server.
 |--------|--------------|-------|
 | `.pdb` | ✓ | Bond orders inferred; explicit H needed for prediction |
 | `.gro` | ✓ | GROMACS coordinate file; explicit H needed for prediction |
-| `.sdf` / `.mol2` | ✓ | Bond-order metadata preserved; best for double-bond rendering |
+[//]: # (SDF and MOL2 support has been dropped but might be considered again in the future see )
+[//]: # (| `.sdf` / `.mol2` | ✓ | Bond-order metadata preserved; best for double-bond rendering |) 
 
 > **Explicit hydrogens required** for bead-type prediction and AA SMILES export. Use a protonation tool before loading if needed.
 
