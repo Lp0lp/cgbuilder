@@ -15,5 +15,5 @@
  * @returns the element, typed as T
  */
 export function byId<T extends HTMLElement = HTMLElement>(id: string): T {
-    return document.getElementById(id) as T;
+  return document.getElementById(id) as T;
 }

@@ -43,12 +43,12 @@ export const PROBE_RADIUS = 1.91;
    "U" beads are virtual/ghost beads and contribute no surface (radius 0).
    Edit this table to switch force fields. */
 export const BEAD_RADII: Record<string, number> = {
-    R: 2.64,
-    S: 2.30,
-    T: 1.91,
-    U: 0.0,
+  R: 2.64,
+  S: 2.3,
+  T: 1.91,
+  U: 0.0,
 };
-const DEFAULT_BEAD_SIZE = "R";
+const DEFAULT_BEAD_SIZE = 'R';
 
 /**
  * The Martini size-class letter (R/S/T/U) implied by a bead type string,
@@ -58,10 +58,10 @@ const DEFAULT_BEAD_SIZE = "R";
  * @returns one of "R", "S", "T", "U"
  */
 export function beadSizeClass(type: string): string {
-    if (!type) return DEFAULT_BEAD_SIZE;
-    const first = type.trim().charAt(0).toUpperCase();
-    if (first === "S" || first === "T" || first === "U") return first;
-    return DEFAULT_BEAD_SIZE;
+  if (!type) return DEFAULT_BEAD_SIZE;
+  const first = type.trim().charAt(0).toUpperCase();
+  if (first === 'S' || first === 'T' || first === 'U') return first;
+  return DEFAULT_BEAD_SIZE;
 }
 
 /**
@@ -70,13 +70,21 @@ export function beadSizeClass(type: string): string {
  * @returns radius in Angstrom (0 for virtual "U" beads)
  */
 export function beadRadius(bead: Bead): number {
-    return BEAD_RADII[beadSizeClass(bead.type)];
+  return BEAD_RADII[beadSizeClass(bead.type)];
 }
 
 // Standard vdW radii (Angstrom) for elements found in organic molecules.
 const VDW_RADII: Record<string, number> = {
-    H: 1.09, C: 1.75, N: 1.61, O: 1.56, F: 1.44,
-    P: 1.80, S: 1.79, CL: 1.74, BR: 1.85, I: 2.00,
+  H: 1.09,
+  C: 1.75,
+  N: 1.61,
+  O: 1.56,
+  F: 1.44,
+  P: 1.8,
+  S: 1.79,
+  CL: 1.74,
+  BR: 1.85,
+  I: 2.0,
 };
 const DEFAULT_VDW_RADIUS = 1.75;
 
@@ -89,15 +97,15 @@ const DEFAULT_VDW_RADIUS = 1.75;
  * @returns unit-length [x,y,z] points
  */
 function fibonacciSpherePoints(n: number): [number, number, number][] {
-    const pts: [number, number, number][] = new Array(n);
-    const phi = Math.PI * (3 - Math.sqrt(5));
-    for (let i = 0; i < n; i++) {
-        const y = 1 - (i / (n - 1)) * 2;
-        const r = Math.sqrt(1 - y * y);
-        const theta = phi * i;
-        pts[i] = [r * Math.cos(theta), y, r * Math.sin(theta)];
-    }
-    return pts;
+  const pts: [number, number, number][] = new Array(n);
+  const phi = Math.PI * (3 - Math.sqrt(5));
+  for (let i = 0; i < n; i++) {
+    const y = 1 - (i / (n - 1)) * 2;
+    const r = Math.sqrt(1 - y * y);
+    const theta = phi * i;
+    pts[i] = [r * Math.cos(theta), y, r * Math.sin(theta)];
+  }
+  return pts;
 }
 
 /**
@@ -121,44 +129,56 @@ function fibonacciSpherePoints(n: number): [number, number, number][] {
  * @param nPoints - sample points per particle (more = smoother, slower)
  * @returns total SASA in Å²
  */
-export function shrakeRupley(particles: Particle[], probeRadius: number, nPoints = 4800): number {
-    const n = particles.length;
-    if (n === 0) return 0;
-    const unitPts = fibonacciSpherePoints(nPoints);
-    let totalSASA = 0;
+export function shrakeRupley(
+  particles: Particle[],
+  probeRadius: number,
+  nPoints = 4800,
+): number {
+  const n = particles.length;
+  if (n === 0) return 0;
+  const unitPts = fibonacciSpherePoints(nPoints);
+  let totalSASA = 0;
 
-    for (let i = 0; i < n; i++) {
-        const [xi, yi, zi, ri] = particles[i];
-        const shellR = ri + probeRadius;
+  for (let i = 0; i < n; i++) {
+    const [xi, yi, zi, ri] = particles[i];
+    const shellR = ri + probeRadius;
 
-        // Each neighbour's coordinates/cutoff are fixed regardless of which
-        // sample point is being tested, so they're resolved once here rather
-        // than re-derived from `particles[j]` on every one of the nPoints
-        // iterations below.
-        const neighbors: Particle[] = [];
-        for (let j = 0; j < n; j++) {
-            if (j === i) continue;
-            const [xj, yj, zj, rj] = particles[j];
-            const cutoff = shellR + rj + probeRadius;
-            const dx = xi - xj, dy = yi - yj, dz = zi - zj;
-            if (dx*dx + dy*dy + dz*dz < cutoff*cutoff) neighbors.push([xj, yj, zj, rj + probeRadius]);
-        }
-
-        let exposed = 0;
-        for (const [ux, uy, uz] of unitPts) {
-            const px = xi + shellR * ux;
-            const py = yi + shellR * uy;
-            const pz = zi + shellR * uz;
-            let buried = false;
-            for (const [xj, yj, zj, cutoff] of neighbors) {
-                const dx = px - xj, dy = py - yj, dz = pz - zj;
-                if (dx*dx + dy*dy + dz*dz < cutoff*cutoff) { buried = true; break; }
-            }
-            if (!buried) exposed++;
-        }
-        totalSASA += (exposed / nPoints) * 4 * Math.PI * shellR * shellR;
+    // Each neighbour's coordinates/cutoff are fixed regardless of which
+    // sample point is being tested, so they're resolved once here rather
+    // than re-derived from `particles[j]` on every one of the nPoints
+    // iterations below.
+    const neighbors: Particle[] = [];
+    for (let j = 0; j < n; j++) {
+      if (j === i) continue;
+      const [xj, yj, zj, rj] = particles[j];
+      const cutoff = shellR + rj + probeRadius;
+      const dx = xi - xj,
+        dy = yi - yj,
+        dz = zi - zj;
+      if (dx * dx + dy * dy + dz * dz < cutoff * cutoff)
+        neighbors.push([xj, yj, zj, rj + probeRadius]);
     }
-    return totalSASA;
+
+    let exposed = 0;
+    for (const [ux, uy, uz] of unitPts) {
+      const px = xi + shellR * ux;
+      const py = yi + shellR * uy;
+      const pz = zi + shellR * uz;
+      let buried = false;
+      for (const [xj, yj, zj, cutoff] of neighbors) {
+        const dx = px - xj,
+          dy = py - yj,
+          dz = pz - zj;
+        if (dx * dx + dy * dy + dz * dz < cutoff * cutoff) {
+          buried = true;
+          break;
+        }
+      }
+      if (!buried) exposed++;
+    }
+    totalSASA += (exposed / nPoints) * 4 * Math.PI * shellR * shellR;
+  }
+  return totalSASA;
 }
 
 /**
@@ -168,13 +188,13 @@ export function shrakeRupley(particles: Particle[], probeRadius: number, nPoints
  * @param probeRadius - solvent probe radius in Angstrom
  */
 export function aaSASA(structure: Structure, probeRadius: number): number {
-    const particles: Particle[] = [];
-    structure.eachAtom((atom) => {
-        const el = (atom.element || "").toUpperCase();
-        const r = VDW_RADII[el] ?? DEFAULT_VDW_RADIUS;
-        particles.push([atom.x, atom.y, atom.z, r]);
-    });
-    return shrakeRupley(particles, probeRadius);
+  const particles: Particle[] = [];
+  structure.eachAtom((atom) => {
+    const el = (atom.element || '').toUpperCase();
+    const r = VDW_RADII[el] ?? DEFAULT_VDW_RADIUS;
+    particles.push([atom.x, atom.y, atom.z, r]);
+  });
+  return shrakeRupley(particles, probeRadius);
 }
 
 /**
@@ -186,16 +206,19 @@ export function aaSASA(structure: Structure, probeRadius: number): number {
  * @param probeRadius - solvent probe radius in Angstrom (same value as used
  *   for aaSASA, so the two totals are comparable)
  */
-export function cgSASA(collection: BeadCollection, probeRadius: number): number {
-    const particles: Particle[] = [];
-    for (const bead of collection.beads) {
-        if (bead.atoms.length === 0) continue;
-        const r = beadRadius(bead);
-        if (r <= 0) continue;
-        const c = bead.center;
-        particles.push([c.x, c.y, c.z, r]);
-    }
-    return shrakeRupley(particles, probeRadius);
+export function cgSASA(
+  collection: BeadCollection,
+  probeRadius: number,
+): number {
+  const particles: Particle[] = [];
+  for (const bead of collection.beads) {
+    if (bead.atoms.length === 0) continue;
+    const r = beadRadius(bead);
+    if (r <= 0) continue;
+    const c = bead.center;
+    particles.push([c.x, c.y, c.z, r]);
+  }
+  return shrakeRupley(particles, probeRadius);
 }
 
 /**
@@ -204,9 +227,9 @@ export function cgSASA(collection: BeadCollection, probeRadius: number): number 
  * @returns exactly 4 characters
  */
 function formatPDBAtomName(name: string): string {
-    name = (name || "").substring(0, 4);
-    if (name.length >= 4) return name;
-    return (" " + name).padEnd(4);
+  name = (name || '').substring(0, 4);
+  if (name.length >= 4) return name;
+  return (' ' + name).padEnd(4);
 }
 
 /**
@@ -232,29 +255,45 @@ function formatPDBAtomName(name: string): string {
  * @returns PDB-format text (empty string if no beads qualify)
  */
 export function beadsToPDB(collection: BeadCollection): string {
-    const lines: string[] = [];
-    let serial = 0;
-    for (const bead of collection.beads) {
-        if (bead.atoms.length === 0) continue;
-        const radius = beadRadius(bead);
-        if (radius <= 0) continue;
-        serial += 1;
-        const center = bead.center;
-        const serStr = String(serial % 100000).padStart(5);
-        const name = formatPDBAtomName(bead.name ?? "");
-        const resname = (bead.resname || "BEA").substring(0, 3).padEnd(3);
-        const resid = String(((bead.resid % 10000) + 10000) % 10000).padStart(4);
-        const x = center.x.toFixed(3).padStart(8);
-        const y = center.y.toFixed(3).padStart(8);
-        const z = center.z.toFixed(3).padStart(8);
-        const occ = "  1.00";
-        const bfac = radius.toFixed(2).padStart(6);
-        lines.push(
-            "ATOM  " + serStr + " " + name + " " + resname + " " + "A" + resid +
-            " " + "   " + x + y + z + occ + bfac + "          " + " C"
-        );
-    }
-    if (lines.length === 0) return "";
-    lines.push("END");
-    return lines.join("\n") + "\n";
+  const lines: string[] = [];
+  let serial = 0;
+  for (const bead of collection.beads) {
+    if (bead.atoms.length === 0) continue;
+    const radius = beadRadius(bead);
+    if (radius <= 0) continue;
+    serial += 1;
+    const center = bead.center;
+    const serStr = String(serial % 100000).padStart(5);
+    const name = formatPDBAtomName(bead.name ?? '');
+    const resname = (bead.resname || 'BEA').substring(0, 3).padEnd(3);
+    const resid = String(((bead.resid % 10000) + 10000) % 10000).padStart(4);
+    const x = center.x.toFixed(3).padStart(8);
+    const y = center.y.toFixed(3).padStart(8);
+    const z = center.z.toFixed(3).padStart(8);
+    const occ = '  1.00';
+    const bfac = radius.toFixed(2).padStart(6);
+    lines.push(
+      'ATOM  ' +
+        serStr +
+        ' ' +
+        name +
+        ' ' +
+        resname +
+        ' ' +
+        'A' +
+        resid +
+        ' ' +
+        '   ' +
+        x +
+        y +
+        z +
+        occ +
+        bfac +
+        '          ' +
+        ' C',
+    );
+  }
+  if (lines.length === 0) return '';
+  lines.push('END');
+  return lines.join('\n') + '\n';
 }

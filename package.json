@@ -4,6 +4,11 @@
   "description": "CGBuilder — Visual tool to build CG molecule models",
   "type": "module",
   "scripts": {
+    "lint": "eslint \"src/**/*.ts\"",
+    "lint:fix": "eslint \"src/**/*.ts\" --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "validate": "npm run lint:fix && npm run lint && npm run format && npm run format:check",
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck && node build.mjs",
     "dev": "node build.mjs --watch",
@@ -23,9 +28,14 @@
   },
   "homepage": "https://github.com/Lp0lp/cgbuilder#readme",
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "esbuild": "^0.28.1",
+    "eslint": "^10.10.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.9.6",
     "typedoc": "^0.28.20",
     "typescript": "^6.0.3",
+    "typescript-eslint": "^8.69.0",
     "vitest": "^4.1.9"
   },
   "dependencies": {
