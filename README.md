@@ -58,7 +58,7 @@ Tests cover all modules. No browser or DOM dependency is required; the suite run
 | ------------------------------------------------- | ----------------------------------------------------------------- |
 | [NGL](https://github.com/nglviewer/ngl)           | 3D molecular viewer (npm, bundled)                                |
 | [@rdkit/rdkit](https://github.com/rdkit/rdkit-js) | SMILES generation and fragment canonicalisation (npm, code-split) |
-| [marked](https://github.com/markedjs/marked)      | Markdown rendering for in-app docs (CDN)                          |
+| [marked](https://github.com/markedjs/marked)      | Markdown rendering for in-app docs (npm, bundled)                          |
 
 Development tooling includes [TypeScript](https://www.typescriptlang.org/), [ESLint](https://eslint.org/), [Prettier](https://prettier.io/), [esbuild](https://esbuild.github.io/), [Vitest](https://vitest.dev/), [TypeDoc](https://typedoc.org/), [Husky](https://typicode.github.io/husky/), and [lint-staged](https://github.com/lint-staged/lint-staged).
 
